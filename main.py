@@ -1,4 +1,4 @@
-print('helloworld')
+print('hello world')
 #======================== main.py ========================
 
 import pygame

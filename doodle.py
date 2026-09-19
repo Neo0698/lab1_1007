@@ -23,7 +23,7 @@ doodle_dict.update({
     "x": DOODLE_START_X,
     "y": DOODLE_START_Y,
     "vel_y": 0.0,
-    "direction": "right",  # "left" ou "right"
+    "direction": "left",  # "left" ou "right"
     "score": 0,
     "high_score": 0,
     "lives": LIVES,

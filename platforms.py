@@ -36,12 +36,16 @@ def create_platform(x, y, platform_type="green"):
     plateforme verte. Votre travail consiste à le généraliser afin qu'il
     représente aussi correctement les plateformes bleues, marron et à ressort.
     """
-
+    prob_vert=0.55
+    prob_bleue=0.2
+    prob_ressort=0.13
+    color=choose_platform_type(0.55,0.2,0.13)
+    print("platform_images",platform_images.keys())
     platform = {
         "x": float(x),
         "y": float(y),
-        "type": "green",                    # TODO
-        "image": platform_images["green"],  # TODO
+        "type": color,                    # TODO
+        "image": platform_images[color],  # TODO
         "vx": 0.0,                          # TODO
         "active": True,
         "width": PLATFORM_SIZE[0],
@@ -79,7 +83,20 @@ def choose_platform_type(green_probability, blue_probability, spring_probability
     # Attention : les seuils utilisés avec random.random() doivent être
     # cumulatifs.
 
-    return "green"  # Valeur temporaire à remplacer
+    r = random.random()
+    prob_vert=green_probability
+    prob_bleue=blue_probability
+    prob_ressort=spring_probability
+    
+    if(r<prob_vert):
+        return "green"
+    if(r>=prob_vert and r<prob_vert+prob_bleue):
+        return "blue"
+    if(r>=prob_bleue+prob_vert and r<prob_bleue+prob_vert+prob_ressort):
+        return "spring"
+    else:
+        return "brown"
+
 
 # ===========================================================
 

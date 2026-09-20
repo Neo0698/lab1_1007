@@ -1,3 +1,4 @@
+
 # ======================== game.py ========================
 
 import pygame
@@ -22,7 +23,7 @@ def apply_gravity():
     # TODO : Mettez à jour la vitesse verticale puis la position verticale
     # du Doodle à partir de GRAVITY.
     doodle_dict["vel_y"]=check_platform_collisions()
-    print("doodle_dict[\"vel_y\"]",doodle_dict["vel_y"])
+    
     doodle_dict["y"]+=doodle_dict["vel_y"]
 
     return
@@ -139,7 +140,17 @@ def scroll_camera():
     # Le score doit représenter la distance verticale ainsi parcourue et le
     # meilleur score doit être mis à jour. Les plateformes sorties sous
     # l'écran doivent être retirées, puis de nouvelles plateformes générées.
-    doodle_dict["score"]=abs(DOODLE_START_Y-doodle_dict["y"])
+   
+    if(doodle_dict["y"]<CAMERA_SCROLL_THRESHOLD):
+
+        doodle_dict["score"]+=abs(CAMERA_SCROLL_THRESHOLD-doodle_dict["y"])
+        
+        scroll=abs(CAMERA_SCROLL_THRESHOLD-doodle_dict["y"])
+        doodle_dict["y"] = CAMERA_SCROLL_THRESHOLD
+        print(PLATFORMS[0])
+        for i in range(len(PLATFORMS)):
+            
+            PLATFORMS[i]["y"]+=scroll
 
 
     return

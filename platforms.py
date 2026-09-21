@@ -40,13 +40,13 @@ def create_platform(x, y, platform_type="green"):
     prob_bleue=0.2
     prob_ressort=0.13
     color=choose_platform_type(0.55,0.2,0.13)
-    print("platform_images",platform_images.keys())
+    print("color",color)
     platform = {
         "x": float(x),
         "y": float(y),
         "type": color,                    # TODO
         "image": platform_images[color],  # TODO
-        "vx": 0.0,                          # TODO
+        "vx": MOVING_PLATFORM_SPEED if color == "blue" else 0,                          # TODO
         "active": True,
         "width": PLATFORM_SIZE[0],
         "height": PLATFORM_SIZE[1]           # TODO

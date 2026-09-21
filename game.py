@@ -40,12 +40,16 @@ def move_doodle():
     keys = pygame.key.get_pressed()
     if keys[pygame.K_LEFT]:
         print("key")
-        doodle_dict["x"]-=1
+        doodle_dict["x"]-=DOODLE_SPEED
 
 
     if keys[pygame.K_RIGHT]:
         print("key")
-        doodle_dict["x"]+=1
+        doodle_dict["x"]+=DOODLE_SPEED
+    if(doodle_dict["x"]<0):
+        doodle_dict["x"]=SCREEN_WIDTH
+    if(doodle_dict["x"]>SCREEN_WIDTH):
+        doodle_dict["x"]=0
 
 
 
@@ -75,7 +79,15 @@ def move_platforms():
     # TODO : Parcourez les plateformes et gérez le déplacement des plateformes
     # bleues encore actives. Elles doivent rester dans la fenêtre en inversant
     # leur vitesse lorsqu'elles atteignent un bord.
-
+    for el in PLATFORMS:
+        if(el["type"]=="blue"):
+            
+            el["x"]+=el["vx"]
+            if(el["x"]>SCREEN_WIDTH-el["width"]):
+                el["vx"]*=-1
+            if(el["x"]<el["width"]):
+                el["vx"]*=-1
+        print(el)
     return
 
 # ===========================================================
@@ -144,7 +156,8 @@ def scroll_camera():
     if(doodle_dict["y"]<CAMERA_SCROLL_THRESHOLD):
 
         doodle_dict["score"]+=abs(CAMERA_SCROLL_THRESHOLD-doodle_dict["y"])
-        
+        if(doodle_dict["score"]>doodle_dict["high_score"]):
+            doodle_dict["high_score"]=doodle_dict["score"]
         scroll=abs(CAMERA_SCROLL_THRESHOLD-doodle_dict["y"])
         doodle_dict["y"] = CAMERA_SCROLL_THRESHOLD
         print(PLATFORMS[0])

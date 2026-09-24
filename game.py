@@ -41,11 +41,15 @@ def move_doodle():
     if keys[pygame.K_LEFT]:
         print("key")
         doodle_dict["x"]-=DOODLE_SPEED
+        doodle_dict["direction"] = "left"
+        doodle_dict["image"] = doodle_left_img
         
 
     if keys[pygame.K_RIGHT]:
         print("key")
         doodle_dict["x"]+=DOODLE_SPEED
+        doodle_dict["direction"] = "right"
+        doodle_dict["image"] = doodle_right_img
     
 
     if(doodle_dict["x"]<0):

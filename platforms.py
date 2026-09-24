@@ -36,10 +36,8 @@ def create_platform(x, y, platform_type="green"):
     plateforme verte. Votre travail consiste à le généraliser afin qu'il
     représente aussi correctement les plateformes bleues, marron et à ressort.
     """
-    prob_vert=0.55
-    prob_bleue=0.2
-    prob_ressort=0.13
-    color=choose_platform_type(0.55,0.2,0.13)
+    color=platform_type
+    
     print("color",color)
     platform = {
         "x": float(x),

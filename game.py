@@ -197,8 +197,8 @@ def generate_new_platforms():
     while position > -MAX_PLATFORM_GAP:
         position -= random.randint(MIN_PLATFORM_GAP, MAX_PLATFORM_GAP)
         current_x = random.randint(0, SCREEN_WIDTH - PLATFORM_WIDTH)
-        
-        PLATFORMS.append(create_platform(current_x, position))
+        color=choose_platform_type(0.55,0.2,0.13)
+        PLATFORMS.append(create_platform(current_x, position,platform_type=color))
        
     return
 

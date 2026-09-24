@@ -41,7 +41,7 @@ def move_doodle():
     if keys[pygame.K_LEFT]:
         print("key")
         doodle_dict["x"]-=DOODLE_SPEED
-
+        
 
     if keys[pygame.K_RIGHT]:
         print("key")
@@ -52,6 +52,7 @@ def move_doodle():
         doodle_dict["x"]=SCREEN_WIDTH
     if(doodle_dict["x"]>SCREEN_WIDTH):
         doodle_dict["x"]=0
+
 
 
 

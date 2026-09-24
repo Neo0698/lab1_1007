@@ -46,6 +46,8 @@ def move_doodle():
     if keys[pygame.K_RIGHT]:
         print("key")
         doodle_dict["x"]+=DOODLE_SPEED
+    
+
     if(doodle_dict["x"]<0):
         doodle_dict["x"]=SCREEN_WIDTH
     if(doodle_dict["x"]>SCREEN_WIDTH):
@@ -84,10 +86,12 @@ def move_platforms():
             
             el["x"]+=el["vx"]
             if(el["x"]>SCREEN_WIDTH-el["width"]):
+                el["x"] = SCREEN_WIDTH - el["width"]
                 el["vx"]*=-1
-            if(el["x"]<el["width"]):
+            if(el["x"]<0):
+                el["x"] =0
                 el["vx"]*=-1
-        print(el)
+        
     return
 
 # ===========================================================

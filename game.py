@@ -124,7 +124,7 @@ def check_platform_collisions():
     # - green/blue : JUMP_VELOCITY.
     
     velo=doodle_dict["vel_y"]+GRAVITY
-    del_i=-1
+    delete_i=-1
     if(doodle_dict["vel_y"] > 0):
         i=0
         for el in PLATFORMS:
@@ -137,10 +137,10 @@ def check_platform_collisions():
                         velo=SPRING_JUMP_VELOCITY
                     elif(el["type"]=="brown"):
                         velo=JUMP_VELOCITY
-                        del_i=i
+                        delete_i=i
             i+=1
-    if(del_i!=-1):
-        del PLATFORMS[del_i]
+    if(delete_i!=-1):
+        del PLATFORMS[delete_i]
         
        
     return velo

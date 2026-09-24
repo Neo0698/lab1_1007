@@ -47,7 +47,7 @@ def create_platform(x, y, platform_type="green"):
         "vx": MOVING_PLATFORM_SPEED if color == "blue" else 0,                          # TODO
         "active": True,
         "width": PLATFORM_SIZE[0],
-        "height": PLATFORM_SIZE[1]           # TODO
+        "height": PLATFORM_SIZE[1] + 10 if color == "spring" else PLATFORM_SIZE[1]           # TODO
     }
 
     # TODO : Modifiez le dictionnaire ci-dessus pour qu'il dépende réellement
@@ -82,15 +82,13 @@ def choose_platform_type(green_probability, blue_probability, spring_probability
     # cumulatifs.
 
     r = random.random()
-    prob_vert=green_probability
-    prob_bleue=blue_probability
-    prob_ressort=spring_probability
     
-    if(r<prob_vert):
+    
+    if(r<green_probability):
         return "green"
-    if(r>=prob_vert and r<prob_vert+prob_bleue):
+    if(r<green_probability+blue_probability):
         return "blue"
-    if(r>=prob_bleue+prob_vert and r<prob_bleue+prob_vert+prob_ressort):
+    if(r<blue_probability+green_probability+spring_probability):
         return "spring"
     else:
         return "brown"

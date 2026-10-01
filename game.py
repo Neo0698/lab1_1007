@@ -122,9 +122,7 @@ def check_platform_collisions():
     # - brown : JUMP_VELOCITY puis désactivation de la plateforme ;
     # - green/blue : JUMP_VELOCITY.
     
-    color=None
-    delete_i=-1
-    velo=0
+   
     if(doodle_dict["vel_y"] > 0):
         i=0
         for el in PLATFORMS:
@@ -180,7 +178,7 @@ def scroll_camera():
         
         PLATFORMS[:] = [p for p in PLATFORMS if p["y"] <= SCREEN_HEIGHT]
 
-
+    generate_new_platforms()
     return
 
 # ===========================================================

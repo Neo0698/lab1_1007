@@ -43,7 +43,7 @@ while running:
     check_platform_collisions()
     scroll_camera()
     check_game_over()
-    generate_new_platforms()
+    
 
     # 4. Affichage graphique
     draw_window()

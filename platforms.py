@@ -38,7 +38,7 @@ def create_platform(x, y, platform_type="green"):
     """
     color=platform_type
     
-    print("color",color)
+    
     platform = {
         "x": float(x),
         "y": float(y),

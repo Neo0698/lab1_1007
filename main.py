@@ -1,4 +1,4 @@
-print('hello world')
+
 #======================== main.py ========================
 
 import pygame
@@ -40,7 +40,7 @@ while running:
     move_doodle()
     apply_gravity()
     move_platforms()
-    #check_platform_collisions()
+    check_platform_collisions()
     scroll_camera()
     check_game_over()
     generate_new_platforms()

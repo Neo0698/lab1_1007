@@ -176,7 +176,7 @@ def scroll_camera():
             
             el["y"]+=scroll
         
-        PLATFORMS[:] = [p for p in PLATFORMS if p["y"] <= SCREEN_HEIGHT]
+        PLATFORMS[:] = [p for p in PLATFORMS if p["y"] < SCREEN_HEIGHT]
 
     generate_new_platforms()
     return

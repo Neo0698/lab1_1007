@@ -1,0 +1,78 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <title>Prédiction de Retard de Vol (k-NN)</title>
+    <style>
+        body { font-family: Arial, sans-serif; background-color: #f4f7f6; margin: 0; padding: 50px; }
+        .container { max-width: 450px; background: white; padding: 30px; border-radius: 8px; box-shadow: 0 4px 10px rgba(0,0,0,0.1); margin: auto; }
+        h2 { text-align: center; color: #333; }
+        .form-group { margin-bottom: 15px; }
+        label { display: block; margin-bottom: 5px; font-weight: bold; color: #555; }
+        input, select { width: 100%; padding: 8px; box-sizing: border-box; border: 1px solid #ccc; border-radius: 4px; }
+        button { width: 100%; background-color: #4CAF50; color: white; padding: 10px; border: none; border-radius: 4px; font-size: 16px; cursor: pointer; }
+        button:hover { background-color: #45a049; }
+        .result { margin-top: 20px; padding: 15px; border-radius: 4px; text-align: center; font-weight: bold; font-size: 15px; }
+        .success { background-color: #e8f5e9; color: #2e7d32; }
+        .danger { background-color: #ffebee; color: #c62828; }
+        .error { background-color: #fff3e0; color: #ef6c00; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h2>Prédiction de Vol (k-NN)</h2>
+        <form method="POST">
+            <div class="form-group">
+                <label for="airline">Compagnie aérienne :</label>
+                <select id="airline" name="airline">
+                    {% for air in airlines %}
+                        <option value="{{ air }}">{{ air }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            
+            <div class="form-group">
+                <label for="day_of_week">Jour de la semaine (1 à 7) :</label>
+                <select id="day_of_week" name="day_of_week">
+                    <option value="1">1 - Lundi</option>
+                    <option value="2">2 - Mardi</option>
+                    <option value="3">3 - Mercredi</option>
+                    <option value="4">4 - Jeudi</option>
+                    <option value="5">5 - Vendredi</option>
+                    <option value="6">6 - Samedi</option>
+                    <option value="7">7 - Dimanche</option>
+                </select>
+            </div>
+            
+            <div class="form-group">
+                <label for="heure">Heure de départ (0-23) :</label>
+                <input type="number" id="heure" name="heure" min="0" max="23" required value="14">
+            </div>
+            
+            <div class="form-group">
+                <label for="minutes">Minutes de départ (0-59) :</label>
+                <input type="number" id="minutes" name="minutes" min="0" max="59" required value="0">
+            </div>
+            
+            <div class="form-group">
+                <label for="length">Durée du vol en minutes (ex: 495) :</label>
+                <input type="number" id="length" name="length" required value="495">
+            </div>
+            
+            <button type="submit">Calculer le risque de retard</button>
+        </form>
+
+        {% if resultat %}
+            <div class="result {% if resultat.erreur %}error{% elif resultat.retarde > 50 %}danger{% else %}success{% endif %}">
+                {% if resultat.erreur %}
+                    {{ resultat.erreur }}
+                {% else %}
+                    📊 <b>Résultats des probabilités :</b><br><br>
+                    ✅ À l'heure : <b>{{ resultat.a_l_heure }}%</b><br>
+                    🚨 Retardé : <b>{{ resultat.retarde }}%</b>
+                {% endif %}
+            </div>
+        {% endif %}
+    </div>
+</body>
+</html>

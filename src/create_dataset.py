@@ -22,7 +22,7 @@ CONFIG = "flight_detail"
 NB_LIGNES = 2_000_000         # total final (moitié en retard, moitié à l'heure)
 SEUIL_RETARD_MIN = 15       # retard à l'arrivée (min) à partir duquel Delay = 1
 GRAINE = 42                 # reproductibilité
-SORTIE = "airlines.csv"
+SORTIE = "donnees/airlines.csv"
 MAX_PAR_GROUPE = 400_000     # vols gardés au maximum par (compagnie, classe)
 LOTS_PAR_FUSION = 20        # fusion de l'échantillon tous les N lots (plus rapide)
 TAILLE_LOT = 500_000         # lignes lues à la fois

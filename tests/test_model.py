@@ -7,7 +7,7 @@ import numpy as np
 import pandas as pd
 import pytest
 
-# Ajoute le dossier src/ au path Python pour importer model
+# Ajoute src/ au path Python
 sys.path.append(str(Path(__file__).parent.parent))
 
 from src.model import ModeleVol, DonneeInvalideError
@@ -37,7 +37,7 @@ def modele_entraine(tmp_path_factory):
     dossier = tmp_path_factory.mktemp("donnees")
     chemin = dossier / "Airlines.csv"
     fabriquer_vols().to_csv(chemin, index=False)
-    modele = ModeleVol(str(chemin))  # ← Maintenant ça importe depuis model.py !
+    modele = ModeleVol(str(chemin))
     scores = modele.entrainer()
     return modele, scores
 
@@ -47,10 +47,12 @@ def modele_entraine(tmp_path_factory):
 def test_charger_donnees_fichier_introuvable():
     modele = ModeleVol("donnees/fichier_inexistant.csv")
     with pytest.raises(FileNotFoundError):
-        modele.charger_donnees()
+        modele.donnees.charger_donnees("donnees/fichier_inexistant.csv")
 
 def test_charger_donnees_ok(chemin_csv):
-    df = ModeleVol(chemin_csv).charger_donnees()
+    modele = ModeleVol(chemin_csv)
+    modele.donnees.charger_donnees(chemin_csv)  # ← Charger les données
+    df = modele.donnees.data  # ← Accéder via donnees.data
     assert len(df) == 60
     assert {"Airline", "DayOfWeek", "Time", "Length", "Delay"} <= set(df.columns)
 
@@ -59,7 +61,8 @@ def test_charger_donnees_ok(chemin_csv):
 # ----------------------------------------------------------------------
 def test_preparer_supprime_les_lignes_incompletes(chemin_csv):
     modele = ModeleVol(chemin_csv)
-    df = modele.charger_donnees()
+    modele.donnees.charger_donnees(chemin_csv)
+    df = modele.donnees.data.copy()  # ← Copie pour éviter de modifier l'original
     df.loc[len(df)] = [None, None, None, None, None]   # ligne vide
     df_propre = modele.preparer(df)
     assert len(df_propre) == 60
@@ -67,17 +70,19 @@ def test_preparer_supprime_les_lignes_incompletes(chemin_csv):
 
 def test_preparer_cree_encodage_et_length_carre(chemin_csv):
     modele = ModeleVol(chemin_csv)
-    df = modele.preparer(modele.charger_donnees())
+    modele.donnees.charger_donnees(chemin_csv)
+    df = modele.preparer(modele.donnees.data)  # ← Utilise donnees.data
     # La nouvelle caractéristique est bien le carré de Length
     assert (df["Length_Carre"] == df["Length"] ** 2).all()
     # L'encodage donne un entier par compagnie (3 compagnies -> 0, 1, 2)
     assert set(df["Airline_Encoded"].unique()) == {0, 1, 2}
     # La liste des compagnies est triée
-    assert modele.donnees.liste_airlines == ["AA", "DL", "UA"]  # ← Utilise donnees.liste_airlines
+    assert modele.donnees.liste_airlines == ["AA", "DL", "UA"]  # ← liste_airlines
 
 def test_preparer_ne_modifie_pas_le_dataframe_original(chemin_csv):
     modele = ModeleVol(chemin_csv)
-    df = modele.charger_donnees()
+    modele.donnees.charger_donnees(chemin_csv)
+    df = modele.donnees.data.copy()  # ← Copie
     modele.preparer(df)
     assert "Airline_Encoded" not in df.columns
     assert "Length_Carre" not in df.columns
@@ -94,6 +99,8 @@ def test_entrainer_retourne_deux_scores_valides(modele_entraine):
 
 def test_entrainer_knn_fait_mieux_que_la_reference(modele_entraine):
     _, scores = modele_entraine
+    # Sur ces données, le retard dépend de Length : le kNN doit
+    # battre la classe majoritaire, qui ne regarde rien.
     assert scores["exactitude_knn"] >= scores["exactitude_reference"]
 
 # ----------------------------------------------------------------------
@@ -136,6 +143,7 @@ def test_predire_retourne_deux_probabilites(modele_entraine):
     assert isinstance(probas, np.ndarray)
     assert probas.shape == (2,)
     assert all(0.0 <= p <= 1.0 for p in probas)
+    # Les deux probabilités sont complémentaires
     assert float(probas.sum()) == pytest.approx(1.0)
 
 def test_predire_vol_long_plus_a_risque_que_vol_court(modele_entraine):
@@ -173,7 +181,7 @@ def test_sauvegarder_cree_fichiers_et_metadonnees(modele_entraine, tmp_path):
     assert meta["cible"] == "Delay"
     assert meta["features"] == ["Airline_Encoded", "DayOfWeek", "Time",
                                  "Length", "Length_Carre"]
-    assert meta["airlines_possibles"] == modele.donnees.liste_airlines  # ← Utilise donnees.liste_airlines
+    assert meta["airlines_possibles"] == modele.donnees.liste_airlines  # ← liste_airlines
     assert meta["intervalle_dayofweek"] == [1, 7]
     assert meta["intervalle_time"] == [0, 1439]
     assert meta["intervalle_length"] == [0, 655]

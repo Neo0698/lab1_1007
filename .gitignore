@@ -1,1 +1,11 @@
+# Environnements Python
 env/
+venv/
+.venv/
+
+# Cache Python
+__pycache__/
+*.py[cod]
+
+# Fichiers système
+.DS_Store

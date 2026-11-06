@@ -9,7 +9,7 @@ from sklearn.preprocessing import StandardScaler, LabelEncoder
 from sklearn.neighbors import KNeighborsClassifier
 from sklearn.dummy import DummyClassifier
 
-from dataset import Dataset
+from src.dataset import Dataset
 def sigmoid_weights(distances):
     # On peut inverser et centrer selon un seuil, par exemple :
     # Plus la distance est grande, plus le poids tend vers 0.

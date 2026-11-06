@@ -23,9 +23,9 @@ NB_LIGNES = 2_000_000         # total final (moitié en retard, moitié à l'heu
 SEUIL_RETARD_MIN = 15       # retard à l'arrivée (min) à partir duquel Delay = 1
 GRAINE = 42                 # reproductibilité
 SORTIE = "airlines.csv"
-MAX_PAR_GROUPE = 40_000     # vols gardés au maximum par (compagnie, classe)
+MAX_PAR_GROUPE = 400_000     # vols gardés au maximum par (compagnie, classe)
 LOTS_PAR_FUSION = 20        # fusion de l'échantillon tous les N lots (plus rapide)
-TAILLE_LOT = 50_000         # lignes lues à la fois
+TAILLE_LOT = 500_000         # lignes lues à la fois
 MAX_LIGNES_LUES = 5_000_000      # ex. 5_000_000 pour un essai rapide (None = tout lire)
 
 COLONNES = ["fl_date", "op_carrier", "crs_dep_time", "crs_elapsed_time",

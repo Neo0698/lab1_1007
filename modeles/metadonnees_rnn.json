@@ -1,0 +1,38 @@
+{
+  "cible": "Delay",
+  "airlines_possibles": [
+    "9E",
+    "AA",
+    "AS",
+    "B6",
+    "CO",
+    "DL",
+    "EV",
+    "F9",
+    "FL",
+    "HA",
+    "MQ",
+    "NW",
+    "OH",
+    "OO",
+    "UA",
+    "US",
+    "WN",
+    "XE",
+    "YV"
+  ],
+  "intervalle_dayofweek": [
+    1,
+    7
+  ],
+  "intervalle_time": [
+    0,
+    1439
+  ],
+  "intervalle_length": [
+    0,
+    655
+  ],
+  "exactitude_rnn": 0.5796,
+  "exactitude_reference": 0.5
+}

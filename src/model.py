@@ -10,6 +10,10 @@ from sklearn.neighbors import KNeighborsClassifier
 from sklearn.dummy import DummyClassifier
 
 from dataset import Dataset
+def sigmoid_weights(distances):
+    # On peut inverser et centrer selon un seuil, par exemple :
+    # Plus la distance est grande, plus le poids tend vers 0.
+    return 1 / (1 + np.exp(distances - 1.0))
 
 class DonneeInvalideError(Exception):
     """Exception personnalisée levée quand une saisie utilisateur est invalide."""
@@ -42,14 +46,14 @@ class Data(Dataset):
 class ModeleVol:
     """Modèle de prédiction de retard de vol basé sur un kNN."""
 
-    def __init__(self, chemin_csv: str = "donnees/Airlines.csv") -> None:
+    def __init__(self, chemin_csv: str = "donnees/Airlines.csv",n=31) -> None:
         self._chemin_csv = chemin_csv
         self._le: LabelEncoder | None = None
         self._scaler: StandardScaler | None = None
         self._knn: KNeighborsClassifier | None = None
         
         self._features = ["Airline_Encoded", "DayOfWeek", "Time", "Length", "Length_Carre"]
-        self.nb_neighbors = 31
+        self.nb_neighbors = n
         self.X_train = None  # ✅ Ajout pour la méthode voisins()
         self.y_train = None  # ✅ Ajout pour la méthode voisins()
         self.donnees=Data()
@@ -87,10 +91,11 @@ class ModeleVol:
         # ✅ STOCKE X_train ET y_train POUR LA MÉTHODE voisins()
         self.X_train = X_train.copy()
         self.y_train = y_train.copy()
+        self.y_test = y_test.copy()
 
         self._scaler = StandardScaler()
-        X_train_scaled = self._scaler.fit_transform(X_train)
-        X_test_scaled = self._scaler.transform(X_test)
+        self.X_train_scaled = self._scaler.fit_transform(X_train)
+        self.X_test_scaled = self._scaler.transform(X_test)
 
         # Référence (classe majoritaire)
         reference = DummyClassifier(strategy="most_frequent")
@@ -99,8 +104,8 @@ class ModeleVol:
 
         # Modèle kNN
         self._knn = KNeighborsClassifier(n_neighbors=self.nb_neighbors, metric="euclidean")
-        self._knn.fit(X_train_scaled, y_train)
-        score_knn = self._knn.score(X_test_scaled, y_test)
+        self._knn.fit(self.X_train_scaled, self.y_train)
+        score_knn = self._knn.score(self.X_test_scaled, self.y_test)
 
         print(f"Référence (classe majoritaire) : {score_reference:.3f}")
         print(f"kNN (k={self.nb_neighbors})                : {score_knn:.3f}")
@@ -109,7 +114,14 @@ class ModeleVol:
             "exactitude_knn": round(float(score_knn), 4),
             "exactitude_reference": round(float(score_reference), 4),
         }
-    
+    def test_knn(self,n=5, metric="euclidean", weight=False):
+        if(weight):
+            self._knn = KNeighborsClassifier(n_neighbors=n, metric=metric, weights=sigmoid_weights)
+        else:
+            self._knn = KNeighborsClassifier(n_neighbors=n, metric=metric)
+        self._knn.fit(self.X_train_scaled, self.y_train)
+        score_knn = self._knn.score(self.X_test_scaled, self.y_test)
+        return score_knn
     # ---------------------------------------------------------
     # Prédiction
     # ---------------------------------------------------------

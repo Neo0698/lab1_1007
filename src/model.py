@@ -1,5 +1,9 @@
+from __future__ import annotations
+
 import os
 import json
+from typing import Callable
+
 import joblib
 
 import numpy as np
@@ -9,7 +13,6 @@ from sklearn.model_selection import train_test_split
 from sklearn.preprocessing import StandardScaler, LabelEncoder
 from sklearn.neighbors import KNeighborsClassifier
 from sklearn.dummy import DummyClassifier
-from sklearn.ensemble import RandomForestClassifier
 
 from .dataset import Dataset
 from .exceptions import DonneeInvalideError
@@ -21,6 +24,7 @@ def sigmoid_weights(distances):
     return 1 / (1 + np.exp(distances - 1.0))
 
 COLONNES_CSV = {"Airline", "Origin", "DayOfWeek", "Time", "Length", "Delay"}
+FEATURES = ["Airline_Encoded", "Origin_Taux", "DayOfWeek", "Time", "Length", "Length_Carre"]
 
 
 def taux_retard_lisse(origines: pd.Series, retards: pd.Series, poids: int = 20) -> pd.Series:
@@ -49,55 +53,114 @@ def taux_retard_lisse(origines: pd.Series, retards: pd.Series, poids: int = 20) 
 
 
 class Data(Dataset):
-    def __init__(self,data=None,airlines=None):
+    """Jeu de données de vols : chargement, découpage entraînement/test et exploration.
+
+    Args:
+        data: DataFrame déjà chargé (facultatif).
+        airlines: Liste des compagnies connues (facultatif).
+    """
+
+    def __init__(self, data: pd.DataFrame | None = None, airlines: list[str] | None = None) -> None:
+        self._data = data
         self._liste_airlines: list[str] = list(airlines) if airlines else []
         self._liste_aeroports: list[str] = []
-        self.origines_train: pd.Series | None = None
-        self._scaler: StandardScaler | None = None
+        self._features = list(FEATURES)
+        self._df_train: pd.DataFrame | None = None
+        self._df_test: pd.DataFrame | None = None
 
-        self._data = data
-        self.X_train=[]
-        self.y_train=[]
-        self.X_train_scaled = []
-        self.X_test_scaled = []
-
-
+    # --- Accès en lecture --------------------------------------------------
     @property
-    def data(self):
+    def data(self) -> pd.DataFrame | None:
+        """Données brutes chargées depuis le CSV."""
         return self._data
+
     @property
-    def liste_airlines(self):
+    def liste_airlines(self) -> list[str]:
+        """Compagnies connues (triées)."""
         return self._liste_airlines
-    def __add__(self,values):
-        if(type(values)!=Data):
-            raise ValueError("can only concentrate Data with Data")
-
-        self._data+=values.data
-        self._liste_airlines+=values.liste_airlines
-    
-    def charger_donnees(self,path:str) -> pd.DataFrame:
-        
-        if not os.path.exists(path):
-            raise FileNotFoundError(f"Erreur : le fichier '{path}' est introuvable.")
-        self._data=pd.read_csv(path)
-        return self._data
-
-    def charger_airlines(self, airlines: list[str]) -> None:
-        self._liste_airlines = list(airlines)
 
     @property
     def liste_aeroports(self) -> list[str]:
-        """Aéroports de départ connus du modèle (triés)."""
+        """Aéroports de départ connus (triés)."""
         return self._liste_aeroports
+
+    @property
+    def features(self) -> list[str]:
+        """Colonnes utilisées comme caractéristiques par le modèle."""
+        return self._features
+
+    @features.setter
+    def features(self, colonnes: list[str]) -> None:
+        self._features = list(colonnes)
+
+    def _verifier_decoupage(self) -> None:
+        """Lève RuntimeError si train_test_split() n'a pas encore été appelé."""
+        if self._df_train is None or self._df_test is None:
+            raise RuntimeError("Données non découpées : appeler train_test_split() d'abord.")
+
+    @property
+    def X_train(self) -> pd.DataFrame:
+        """Caractéristiques de l'ensemble d'entraînement."""
+        self._verifier_decoupage()
+        return self._df_train[self._features]
+
+    @property
+    def y_train(self) -> pd.Series:
+        """Cible (Delay) de l'ensemble d'entraînement."""
+        self._verifier_decoupage()
+        return self._df_train["Delay"]
+
+    @property
+    def X_test(self) -> pd.DataFrame:
+        """Caractéristiques de l'ensemble de test."""
+        self._verifier_decoupage()
+        return self._df_test[self._features]
+
+    @property
+    def y_test(self) -> pd.Series:
+        """Cible (Delay) de l'ensemble de test."""
+        self._verifier_decoupage()
+        return self._df_test["Delay"]
+
+    @property
+    def df_train(self) -> pd.DataFrame:
+        """Ensemble d'entraînement complet (toutes les colonnes)."""
+        self._verifier_decoupage()
+        return self._df_train
+
+    # --- Modification de l'état --------------------------------------------
+    def charger_donnees(self, path: str) -> pd.DataFrame:
+        """Lit le CSV et le garde en mémoire.
+
+        Raises:
+            FileNotFoundError: si le fichier n'existe pas.
+        """
+        if not os.path.exists(path):
+            raise FileNotFoundError(f"Erreur : le fichier '{path}' est introuvable.")
+        self._data = pd.read_csv(path)
+        return self._data
+
+    def charger_airlines(self, airlines: list[str]) -> None:
+        """Remplace la liste des compagnies connues."""
+        self._liste_airlines = list(airlines)
 
     def charger_aeroports(self, aeroports: list[str]) -> None:
         """Remplace la liste des aéroports de départ connus."""
         self._liste_aeroports = list(aeroports)
-    def scale(self):
-        self._scaler = StandardScaler()
-        self.X_train_scaled = self._scaler.fit_transform(self.X_train)
-        self.X_test_scaled = self._scaler.transform(self.X_test)
 
+    def train_test_split(self, df: pd.DataFrame, test_size: float = 0.2,
+                         graine: int = 42) -> None:
+        """Découpe df en ensembles d'entraînement et de test (graine fixée : reproductible)."""
+        self._df_train, self._df_test = train_test_split(df, test_size=test_size,
+                                                         random_state=graine)
+
+    def transformer(self, fonction: Callable[[pd.DataFrame], pd.DataFrame]) -> None:
+        """Applique fonction (DataFrame -> DataFrame) aux ensembles d'entraînement et de test."""
+        self._verifier_decoupage()
+        self._df_train = fonction(self._df_train)
+        self._df_test = fonction(self._df_test)
+
+    # --- Exploration ---------------------------------------------------------
     def resume_qualite(self) -> pd.DataFrame:
         """Résume la qualité des données, une ligne par colonne.
 
@@ -169,27 +232,48 @@ class Data(Dataset):
         fig.savefig(chemin_sortie, dpi=120)
         return chemin_sortie
 
+    # --- Méthodes spéciales --------------------------------------------------
+    def __add__(self, autre: "Data") -> "Data":
+        """Renvoie un nouveau Data qui met bout à bout les lignes des deux jeux."""
+        if not isinstance(autre, Data):
+            return NotImplemented
+        lignes = pd.concat([self._data, autre.data], ignore_index=True)
+        compagnies = sorted(set(self._liste_airlines) | set(autre.liste_airlines))
+        return Data(lignes, compagnies)
 
+    def __repr__(self) -> str:
+        n = 0 if self._data is None else len(self._data)
+        return f"Data({n} lignes, {len(self._liste_airlines)} compagnies)"
+
+
+class vol:
+    def __init__(self,k_duree=1, k_aeroport=1, k_day=1):
+        return
 
 
 class ModeleVol:
-    """Modèle de prédiction de retard de vol basé sur un kNN."""
+    """Modèle de prédiction de retard de vol basé sur un kNN.
 
-    def __init__(self, chemin_csv: str = "donnees/Airlines.csv",n=31) -> None:
+    Contient les données (Data) et toutes les transformations apprises sur
+    l'entraînement : encodeur des compagnies, taux de retard des aéroports, scaler.
+
+    Args:
+        chemin_csv: Chemin du jeu de données.
+        n: Nombre de voisins du kNN.
+    """
+
+    def __init__(self, chemin_csv: str = "donnees/Airlines.csv", n: int = 31) -> None:
         self._chemin_csv = chemin_csv
+        self.nb_neighbors = n
+        self.donnees = Data()
         self._le: LabelEncoder | None = None
-        
-        self._knn: KNeighborsClassifier | None = None
-        
-        self._features = ["Airline_Encoded", "Origin_Taux", "DayOfWeek", "Time", "Length", "Length_Carre"]
         self._taux_aeroports: dict[str, float] | None = None
         self._taux_global: float | None = None
-        self.nb_neighbors = n
-        self.X_train = None  # ✅ Ajout pour la méthode voisins()
-        self.y_train = None  # ✅ Ajout pour la méthode voisins()
-        self.donnees=Data()
+        self._scaler: StandardScaler | None = None
+        self._knn: KNeighborsClassifier | None = None
+        self._X_train_scaled: np.ndarray | None = None
+        self._X_test_scaled: np.ndarray | None = None
         self._metadonnees: dict | None = None
-        # Les données sont chargées à la demande (voir entrainer)
 
     @property
     def _liste_airlines(self) -> list[str]:
@@ -207,10 +291,8 @@ class ModeleVol:
         return self._metadonnees
 
     # ---------------------------------------------------------
-    # Chargement et préparation des données
+    # Préparation
     # ---------------------------------------------------------
-    
-
     def preparer(self, df: pd.DataFrame) -> pd.DataFrame:
         """Encode la compagnie, crée Length_Carre et retourne le DataFrame prêt.
 
@@ -224,70 +306,10 @@ class ModeleVol:
         df = df.copy().dropna()
         self._le = LabelEncoder()
         df["Airline_Encoded"] = self._le.fit_transform(df["Airline"])
-        df["Length_Carre"] = df["Length"] ** 2  # Calcul vectorisé (NumPy)
+        df["Length_Carre"] = df["Length"] ** 2  # permet d'apporter plus d'importance sur la duree du vol
         self.donnees.charger_airlines(sorted(df["Airline"].unique()))
         return df
 
-   
-    @chronometrer
-    def entrainer(self) -> dict:
-        """Entraîne le kNN, l'évalue sur le test et retourne les scores."""
-        if self.donnees.data is None:
-            self.donnees.charger_donnees(self._chemin_csv)
-        df = self.preparer(self.donnees.data)
-        df_train, df_test = train_test_split(df, test_size=0.2, random_state=42)
-
-        # Taux de retard par aéroport : calculé sur l'entraînement SEULEMENT (pas de fuite du test)
-        taux = taux_retard_lisse(df_train["Origin"], df_train["Delay"])
-        self._taux_aeroports = {str(a): float(t) for a, t in taux.items()}
-        self._taux_global = float(df_train["Delay"].mean())
-        self.donnees.charger_aeroports(sorted(self._taux_aeroports))
-        df_train = self._ajouter_taux_aeroport(df_train)
-        df_test = self._ajouter_taux_aeroport(df_test)
-        self.donnees.origines_train = df_train["Origin"]
-
-        X_train, y_train = df_train[self._features], df_train["Delay"]
-        X_test, y_test = df_test[self._features], df_test["Delay"]
-
-        # ✅ STOCKE X_train ET y_train POUR LA MÉTHODE voisins()
-        self.donnees.X_train = X_train.copy()
-        self.donnees.y_train = y_train.copy()
-        self.donnees.y_test = y_test.copy()
-        self.donnees.X_test = X_test.copy()
-
-        self.donnees.scale()
-
-        
-        
-
-        # Référence (classe majoritaire)
-        reference = DummyClassifier(strategy="most_frequent")
-        reference.fit(X_train, y_train)
-        score_reference = reference.score(self.donnees.X_test, self.donnees.y_test)
-
-        # Modèle kNN
-        self._knn = KNeighborsClassifier(n_neighbors=self.nb_neighbors, metric="euclidean")
-        self._knn.fit(self.donnees.X_train_scaled, self.donnees.y_train)
-        score_knn = self._knn.score(self.donnees.X_test_scaled, self.donnees.y_test)
-
-        print(f"Référence (classe majoritaire) : {score_reference:.3f}")
-        print(f"kNN (k={self.nb_neighbors})                : {score_knn:.3f}")
-
-        return {
-            "exactitude_knn": round(float(score_knn), 4),
-            "exactitude_reference": round(float(score_reference), 4),
-        }
-    def test_knn(self,n=5, metric="euclidean", weight=False):
-        if(weight):
-            self._knn = KNeighborsClassifier(n_neighbors=n, metric=metric, weights=sigmoid_weights)
-        else:
-            self._knn = KNeighborsClassifier(n_neighbors=n, metric=metric)
-        self._knn.fit(self.donnees.X_train_scaled, self.donnees.y_train)
-        score_knn = self._knn.score(self.donnees.X_test_scaled, self.donnees.y_test)
-        return score_knn
-    # ---------------------------------------------------------
-    # Prédiction
-    # ---------------------------------------------------------
     def _ajouter_taux_aeroport(self, df: pd.DataFrame) -> pd.DataFrame:
         """Renvoie une copie de df avec la colonne Origin_Taux (taux de retard de l'aéroport).
 
@@ -297,6 +319,72 @@ class ModeleVol:
         df["Origin_Taux"] = df["Origin"].map(self._taux_aeroports).fillna(self._taux_global)
         return df
 
+    # ---------------------------------------------------------
+    # Entraînement et évaluation
+    # ---------------------------------------------------------
+    @chronometrer
+    def entrainer(self) -> dict:
+        """Entraîne le kNN, l'évalue sur le test et retourne les scores.
+
+        Raises:
+            FileNotFoundError: si le CSV est introuvable.
+            ValueError: si une colonne attendue manque dans le CSV.
+        """
+        if self.donnees.data is None:
+            self.donnees.charger_donnees(self._chemin_csv)
+        self.donnees.train_test_split(self.preparer(self.donnees.data))
+
+        # Taux de retard par aéroport : calculé sur l'entraînement SEULEMENT (pas de fuite du test)
+        df_train = self.donnees.df_train
+        taux = taux_retard_lisse(df_train["Origin"], df_train["Delay"])
+        self._taux_aeroports = {str(a): float(t) for a, t in taux.items()}
+        self._taux_global = float(df_train["Delay"].mean())
+        self.donnees.charger_aeroports(sorted(self._taux_aeroports))
+        self.donnees.transformer(self._ajouter_taux_aeroport)
+
+        # Normalisation : apprise sur l'entraînement, appliquée au test
+        self._scaler = StandardScaler()
+        self._X_train_scaled = self._scaler.fit_transform(self.donnees.X_train)
+        self._X_test_scaled = self._scaler.transform(self.donnees.X_test)
+
+        # Référence (classe majoritaire)
+        reference = DummyClassifier(strategy="most_frequent")
+        reference.fit(self.donnees.X_train, self.donnees.y_train)
+        score_reference = reference.score(self.donnees.X_test, self.donnees.y_test)
+
+        # Modèle kNN
+        self._knn = KNeighborsClassifier(n_neighbors=self.nb_neighbors, metric="euclidean")
+        self._knn.fit(self._X_train_scaled, self.donnees.y_train)
+        score_knn = self._knn.score(self._X_test_scaled, self.donnees.y_test)
+
+        print(f"Référence (classe majoritaire) : {score_reference:.3f}")
+        print(f"kNN (k={self.nb_neighbors})                : {score_knn:.3f}")
+
+        return {
+            "exactitude_knn": round(float(score_knn), 4),
+            "exactitude_reference": round(float(score_reference), 4),
+        }
+
+    def test_knn(self, n: int = 5, metric: str = "euclidean", weight: bool = False) -> float:
+        """Entraîne un kNN avec d'autres réglages et renvoie son exactitude sur le test.
+
+        À appeler après entrainer() (utilise les mêmes données normalisées).
+
+        Raises:
+            RuntimeError: si entrainer() n'a pas été appelé.
+        """
+        if self._X_train_scaled is None:
+            raise RuntimeError("Appeler entrainer() avant test_knn().")
+        if weight:
+            self._knn = KNeighborsClassifier(n_neighbors=n, metric=metric, weights=sigmoid_weights)
+        else:
+            self._knn = KNeighborsClassifier(n_neighbors=n, metric=metric)
+        self._knn.fit(self._X_train_scaled, self.donnees.y_train)
+        return float(self._knn.score(self._X_test_scaled, self.donnees.y_test))
+
+    # ---------------------------------------------------------
+    # Prédiction
+    # ---------------------------------------------------------
     def _preparer_vol(self, airline_choisie: str, aeroport: str, jour_semaine: int,
                       heure: int, minutes: int, duree: float) -> np.ndarray:
         """Valide les saisies et renvoie le vol normalisé.
@@ -305,7 +393,7 @@ class ModeleVol:
             RuntimeError: si le modèle n'est pas entraîné ou chargé.
             DonneeInvalideError: si une saisie est inconnue ou hors intervalle.
         """
-        if (self._knn is None or self.donnees._scaler is None or self._le is None
+        if (self._knn is None or self._scaler is None or self._le is None
                 or self._taux_aeroports is None):
             raise RuntimeError("Le modèle doit être entraîné avant de prédire.")
         if airline_choisie not in self._liste_airlines:
@@ -327,8 +415,9 @@ class ModeleVol:
             "Length": duree,
             "Length_Carre": duree ** 2,
         }
-        nouveau_vol = pd.DataFrame([[valeurs[f] for f in self._features]], columns=self._features)
-        return self.donnees._scaler.transform(nouveau_vol)
+        features = self.donnees.features
+        nouveau_vol = pd.DataFrame([[valeurs[f] for f in features]], columns=features)
+        return self._scaler.transform(nouveau_vol)
 
     def predire(self, airline_choisie: str, aeroport: str, jour_semaine: int,
                 heure: int, minutes: int, duree: float) -> np.ndarray:
@@ -346,12 +435,16 @@ class ModeleVol:
         """Retourne les k vols d'entraînement les plus proches, avec aéroport, retard et distance."""
         x = self._preparer_vol(airline_choisie, aeroport, jour_semaine, heure, minutes, duree)
         distances, indices = self._knn.kneighbors(x)
-        vols = self.donnees.X_train.iloc[indices[0]].copy()
-        vols.insert(0, "Origin", self.donnees.origines_train.iloc[indices[0]].values)
-        vols["Delay"] = self.donnees.y_train.iloc[indices[0]].values
+        lignes = self.donnees.df_train.iloc[indices[0]]
+        vols = lignes[self.donnees.features].copy()
+        vols.insert(0, "Origin", lignes["Origin"].values)
+        vols["Delay"] = lignes["Delay"].values
         vols["Distance"] = distances[0]
         return vols
 
+    # ---------------------------------------------------------
+    # Chargement et sauvegarde
+    # ---------------------------------------------------------
     def charger(self, dossier: str = "modeles") -> None:
         """Charge le modèle, le scaler, le label encoder et les métadonnées sauvegardés.
 
@@ -370,38 +463,36 @@ class ModeleVol:
 
         with open(os.path.join(dossier, "metadonnees.json"), "r", encoding="utf-8") as f:
             self._metadonnees = json.load(f)
-        self._features = self._metadonnees["features"]
+        self.donnees.features = self._metadonnees["features"]
         self._taux_aeroports = self._metadonnees["taux_retard_aeroports"]
         self._taux_global = self._metadonnees["taux_retard_global"]
 
         # Même découpage (random_state=42) que lors de l'entraînement → mêmes voisins
-        df = self.preparer(self.donnees.charger_donnees(self._chemin_csv))
-        df_train, _ = train_test_split(df, test_size=0.2, random_state=42)
-        df_train = self._ajouter_taux_aeroport(df_train)
-        self.donnees.X_train, self.donnees.y_train = df_train[self._features], df_train["Delay"]
-        self.donnees.origines_train = df_train["Origin"]
+        self.donnees.train_test_split(self.preparer(self.donnees.charger_donnees(self._chemin_csv)))
+        self.donnees.transformer(self._ajouter_taux_aeroport)
 
         self._knn = joblib.load(os.path.join(dossier, "knn.joblib"))
-        self.donnees._scaler = joblib.load(os.path.join(dossier, "scaler.joblib"))
+        self._scaler = joblib.load(os.path.join(dossier, "scaler.joblib"))
         self._le = joblib.load(os.path.join(dossier, "label_encoder.joblib"))
         self.donnees.charger_airlines(self._metadonnees["airlines_possibles"])
         self.donnees.charger_aeroports(self._metadonnees["aeroports_possibles"])
 
-    # ---------------------------------------------------------
-    # Sauvegarde
-    # ---------------------------------------------------------
     def sauvegarder(self, scores: dict, dossier: str = "modeles") -> None:
-        """Sauvegarde le modèle (joblib) et les métadonnées (JSON)."""
-        if self._knn is None or self.donnees._scaler is None or self._le is None:
+        """Sauvegarde le modèle (joblib) et les métadonnées (JSON).
+
+        Raises:
+            RuntimeError: si le modèle n'est pas entraîné.
+        """
+        if self._knn is None or self._scaler is None or self._le is None:
             raise RuntimeError("Le modèle doit être entraîné avant d'être sauvegardé.")
 
         os.makedirs(dossier, exist_ok=True)
         joblib.dump(self._knn, os.path.join(dossier, "knn.joblib"))
-        joblib.dump(self.donnees._scaler, os.path.join(dossier, "scaler.joblib"))
+        joblib.dump(self._scaler, os.path.join(dossier, "scaler.joblib"))
         joblib.dump(self._le, os.path.join(dossier, "label_encoder.joblib"))
 
         metadonnees = {
-            "features": self._features,
+            "features": self.donnees.features,
             "cible": "Delay",
             "airlines_possibles": [str(a) for a in self.donnees.liste_airlines],
             "aeroports_possibles": self.donnees.liste_aeroports,
@@ -419,7 +510,7 @@ class ModeleVol:
         self._metadonnees = metadonnees
 
         print(f"--- Modèle et métadonnées sauvegardés dans '{dossier}/' ---")
-   
+
 
 def main() -> None:
     """Point d'entrée : explore les données, puis entraîne, évalue et sauvegarde le modèle."""

@@ -42,9 +42,9 @@ En testant de multiples algorithme d'IA nous avons determiné qu'un modèle KNN 
 
 
 ### Analyse des résultats
-Le kNN obtient 63,4 % d’exactitude contre 50,0 % pour la référence (classe majoritaire), soit 12,8 points de mieux. Le modèle a donc appris quelque chose. Il se trompe pourtant encore sur plus d’un vol sur trois.
+Le kNN obtient 63,4 % d’exactitude contre 50,0 % pour la référence (classe majoritaire), soit 13,4 points de mieux. Le modèle a donc appris quelque chose. Il se trompe pourtant encore sur plus d’un vol sur trois.
 
-L’heure de départ et la compagnie sont les variables les plus utiles (de 22 % à 60 % de retards selon l’heure, de 8 % à 74 % selon la compagnie). Le jour de la semaine influence peu, et la durée du vol presque pas. Il manque les causes principales des retards : la météo, l’aéroport, le trafic, les retards en cascade.
+L’heure de départ et la compagnie sont les variables les plus utiles (de 22 % à 60 % de retards selon l’heure, de 8 % à 74 % selon la compagnie). Le jour de la semaine influence peu, et la durée du vol presque pas. Il manque les causes principales des retards : la météo, le trafic, les retards en cascade, ne pouvant pas être utilisé car non fournit dans les datasets en ligne.
 
 ### Lancement du programme
 pip install -r requirements.txt

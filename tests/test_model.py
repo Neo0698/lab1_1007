@@ -131,7 +131,7 @@ def test_predire_compagnie_inconnue(modele_entraine):
 @pytest.mark.parametrize("jour", [0, 8])
 def test_predire_jour_hors_intervalle(modele_entraine, jour):
     """
-    test pour les valeurs 0,8 si la prediction renvoi bien une erreur
+    10 ème test, test pour les valeurs: 0 et 8 si la prediction renvoi bien une erreur
     """
     modele, _ = modele_entraine
     with pytest.raises(DonneeInvalideError):
@@ -141,7 +141,7 @@ def test_predire_jour_hors_intervalle(modele_entraine, jour):
 
 def test_predire_heure_invalide(modele_entraine, heure, minutes):
     """
-    test pour les valeurs (heure, minutes) suivante (24, 0), (10, 60), (-1, 30) qu'une erreur est bien produite
+    11ième test, test pour les valeurs (heure, minutes) suivante (24, 0), (10, 60), (-1, 30) qu'une erreur est bien produite
     """
     modele, _ = modele_entraine
     with pytest.raises(DonneeInvalideError):
@@ -150,7 +150,7 @@ def test_predire_heure_invalide(modele_entraine, heure, minutes):
 @pytest.mark.parametrize("duree", [0, -10])
 def test_predire_duree_non_positive(modele_entraine, duree):
     """
-    test qu'une duree de vol non possible renvoi bien une erreur, testé avec les valeur temps nulle et un temps négatif
+    12ième test, test qu'une duree de vol non possible renvoi bien une erreur, testé avec les valeur temps nulle et un temps négatif
     """
     modele, _ = modele_entraine
     with pytest.raises(DonneeInvalideError):
@@ -159,7 +159,7 @@ def test_predire_duree_non_positive(modele_entraine, duree):
 
 def test_predire_retourne_deux_probabilites(modele_entraine):
     """
-    test si la fonction prédire renvoi bien la probabilité que le vol soit a l'heure et que le vol soit en retard et que les deux font bien 100%
+    13ième test, test si la fonction prédire renvoi bien la probabilité que le vol soit a l'heure et que le vol soit en retard et que les deux font bien 100%
     """
     modele, _ = modele_entraine
     probas = modele.predire("AA", "JFK", 3, 10, 30, 200)
@@ -171,7 +171,7 @@ def test_predire_retourne_deux_probabilites(modele_entraine):
 
 def test_predire_vol_long_plus_a_risque_que_vol_court(modele_entraine):
     """
-    test si un vol long est plus en retard (car hypothèse créé dans le dataset de test avec 1 if length >300)
+    14ième test, test si un vol long est plus en retard (car hypothèse créé dans le dataset de test avec 1 if length >300)
     """
     modele, _ = modele_entraine
     p_retard_court = modele.predire("AA", "JFK", 3, 10, 30, 80)[1]
@@ -181,7 +181,7 @@ def test_predire_vol_long_plus_a_risque_que_vol_court(modele_entraine):
 @pytest.mark.parametrize("jour,heure,minutes", [(1, 0, 0), (7, 23, 59)])
 def test_predire_cas_limites_acceptes(modele_entraine, jour, heure, minutes):
     """
-    verifie que les cas limites renvoi bien les deux prédictions
+    15 ième test, verifie que les cas limites renvoi bien les deux prédictions
     """
     modele, _ = modele_entraine
     probas = modele.predire("DL", "JFK", jour, heure, minutes, 120)
@@ -190,7 +190,7 @@ def test_predire_cas_limites_acceptes(modele_entraine, jour, heure, minutes):
 
 def test_sauvegarder_avant_entrainement_leve_runtime_error(chemin_csv, tmp_path):
     """
-    verifie qu'un modele non entrainné ne peut pas être entrainné
+    16ième test, verifie qu'un modele non entrainné ne peut pas être entrainné
     """
     modele = ModeleVol(chemin_csv) 
     scores = {"exactitude_knn": 0.0, "exactitude_reference": 0.0}
@@ -199,7 +199,7 @@ def test_sauvegarder_avant_entrainement_leve_runtime_error(chemin_csv, tmp_path)
 
 def test_sauvegarder_cree_fichiers_et_metadonnees(modele_entraine, tmp_path):
     """
-    verifie qu'un modèle entrainné peut être sauvegardé et que cette action est réalisé correctement en sauvegardant toutes les données nécessaires
+    17ième test, verifie qu'un modèle entrainné peut être sauvegardé et que cette action est réalisé correctement en sauvegardant toutes les données nécessaires
     """
     modele, scores = modele_entraine
     dossier = tmp_path / "modeles"

@@ -8,8 +8,9 @@ from sklearn.model_selection import train_test_split
 from sklearn.preprocessing import StandardScaler, LabelEncoder
 from sklearn.neighbors import KNeighborsClassifier
 from sklearn.dummy import DummyClassifier
+from sklearn.ensemble import RandomForestClassifier
 
-from src.dataset import Dataset
+from .dataset import Dataset
 def sigmoid_weights(distances):
     # On peut inverser et centrer selon un seuil, par exemple :
     # Plus la distance est grande, plus le poids tend vers 0.
@@ -21,7 +22,15 @@ class DonneeInvalideError(Exception):
 class Data(Dataset):
     def __init__(self,data=None,airlines=[]):
         self._liste_airlines: list[str] = airlines
+        self._scaler: StandardScaler | None = None
+
         self._data = data
+        self.X_train=[]
+        self.y_train=[]
+        self.X_train_scaled = []
+        self.X_test_scaled = []
+
+
     @property
     def data(self):
         return self._data
@@ -38,8 +47,13 @@ class Data(Dataset):
     def charger_donnees(self,path:str) -> pd.DataFrame:
         
         if not os.path.exists(path):
-            raise FileNotFoundError(f"Erreur : le fichier '{self._chemin_csv}' est introuvable.")
+            raise FileNotFoundError(f"Erreur : le fichier '{path}' est introuvable.")
         self._data=pd.read_csv(path)
+    def scale(self):
+        self._scaler = StandardScaler()
+        self.X_train_scaled = self._scaler.fit_transform(self.X_train)
+        self.X_test_scaled = self._scaler.transform(self.X_test)
+
 
 
 
@@ -49,7 +63,7 @@ class ModeleVol:
     def __init__(self, chemin_csv: str = "donnees/Airlines.csv",n=31) -> None:
         self._chemin_csv = chemin_csv
         self._le: LabelEncoder | None = None
-        self._scaler: StandardScaler | None = None
+        
         self._knn: KNeighborsClassifier | None = None
         
         self._features = ["Airline_Encoded", "DayOfWeek", "Time", "Length", "Length_Carre"]
@@ -89,23 +103,25 @@ class ModeleVol:
         )
 
         # ✅ STOCKE X_train ET y_train POUR LA MÉTHODE voisins()
-        self.X_train = X_train.copy()
-        self.y_train = y_train.copy()
-        self.y_test = y_test.copy()
+        self.donnees.X_train = X_train.copy()
+        self.donnees.y_train = y_train.copy()
+        self.donnees.y_test = y_test.copy()
+        self.donnees.X_test = X_test.copy()
 
-        self._scaler = StandardScaler()
-        self.X_train_scaled = self._scaler.fit_transform(X_train)
-        self.X_test_scaled = self._scaler.transform(X_test)
+        self.donnees.scale()
+
+        
+        
 
         # Référence (classe majoritaire)
         reference = DummyClassifier(strategy="most_frequent")
         reference.fit(X_train, y_train)
-        score_reference = reference.score(X_test, y_test)
+        score_reference = reference.score(self.donnees.X_test, self.donnees.y_test)
 
         # Modèle kNN
         self._knn = KNeighborsClassifier(n_neighbors=self.nb_neighbors, metric="euclidean")
-        self._knn.fit(self.X_train_scaled, self.y_train)
-        score_knn = self._knn.score(self.X_test_scaled, self.y_test)
+        self._knn.fit(self.donnees.X_train_scaled, self.donnees.y_train)
+        score_knn = self._knn.score(self.donnees.X_test_scaled, self.donnees.y_test)
 
         print(f"Référence (classe majoritaire) : {score_reference:.3f}")
         print(f"kNN (k={self.nb_neighbors})                : {score_knn:.3f}")
@@ -119,8 +135,8 @@ class ModeleVol:
             self._knn = KNeighborsClassifier(n_neighbors=n, metric=metric, weights=sigmoid_weights)
         else:
             self._knn = KNeighborsClassifier(n_neighbors=n, metric=metric)
-        self._knn.fit(self.X_train_scaled, self.y_train)
-        score_knn = self._knn.score(self.X_test_scaled, self.y_test)
+        self._knn.fit(self.donnees.X_train_scaled, self.donnees.y_train)
+        score_knn = self._knn.score(self.donnees.X_test_scaled, self.donnees.y_test)
         return score_knn
     # ---------------------------------------------------------
     # Prédiction
@@ -128,7 +144,7 @@ class ModeleVol:
     def _preparer_vol(self, airline_choisie: str, jour_semaine: int,
                       heure: int, minutes: int, duree: int) -> np.ndarray:
         """Valide les saisies et renvoie le vol normalisé."""
-        if self._knn is None or self._scaler is None or self._le is None:
+        if self._knn is None or self.donnees._scaler is None or self._le is None:
             raise RuntimeError("Le modèle doit être entraîné avant de prédire.")
         if airline_choisie not in self._liste_airlines:
             raise DonneeInvalideError(f"Compagnie inconnue : '{airline_choisie}'.")
@@ -142,7 +158,7 @@ class ModeleVol:
         time_vol = (heure * 60) + minutes
         airline_encoded = self._le.transform([airline_choisie])[0]
         nouveau_vol = np.array([[airline_encoded, jour_semaine, time_vol, duree, duree ** 2]])
-        return self._scaler.transform(nouveau_vol)
+        return self.donnees._scaler.transform(nouveau_vol)
 
     def predire(self, airline_choisie, jour_semaine, heure, minutes, duree) -> np.ndarray:
         """Retourne les probabilités [p_a_l_heure, p_retard] pour un vol."""
@@ -153,7 +169,7 @@ class ModeleVol:
         """Retourne les k vols d'entraînement les plus proches, avec leur retard et leur distance."""
         x = self._preparer_vol(airline_choisie, jour_semaine, heure, minutes, duree)
         distances, indices = self._knn.kneighbors(x)
-        vols = self.X_train.iloc[indices[0]].copy()
+        vols = self.donnees.X_train.iloc[indices[0]].copy()
         vols["Delay"] = self.y_train.iloc[indices[0]].values
         vols["Distance"] = distances[0]
         return vols
@@ -208,7 +224,7 @@ class ModeleVol:
             json.dump(metadonnees, f, ensure_ascii=False, indent=2)
 
         print(f"--- Modèle et métadonnées sauvegardés dans '{dossier}/' ---")
-
+   
 
 def main() -> None:
     """Point d'entrée : entraîne, évalue et sauvegarde le modèle."""

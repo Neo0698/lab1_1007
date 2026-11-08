@@ -20,8 +20,8 @@ class DonneeInvalideError(Exception):
     """Exception personnalisée levée quand une saisie utilisateur est invalide."""
     pass
 class Data(Dataset):
-    def __init__(self,data=None,airlines=[]):
-        self._liste_airlines: list[str] = airlines
+    def __init__(self,data=None,airlines=None):
+        self._liste_airlines: list[str] = list(airlines) if airlines else []
         self._scaler: StandardScaler | None = None
 
         self._data = data
@@ -49,6 +49,10 @@ class Data(Dataset):
         if not os.path.exists(path):
             raise FileNotFoundError(f"Erreur : le fichier '{path}' est introuvable.")
         self._data=pd.read_csv(path)
+        return self._data
+
+    def charger_airlines(self, airlines: list[str]) -> None:
+        self._liste_airlines = list(airlines)
     def scale(self):
         self._scaler = StandardScaler()
         self.X_train_scaled = self._scaler.fit_transform(self.X_train)
@@ -71,7 +75,11 @@ class ModeleVol:
         self.X_train = None  # ✅ Ajout pour la méthode voisins()
         self.y_train = None  # ✅ Ajout pour la méthode voisins()
         self.donnees=Data()
-        self.donnees.charger_donnees(chemin_csv)
+        # Les données sont chargées à la demande (voir entrainer)
+
+    @property
+    def _liste_airlines(self) -> list[str]:
+        return self.donnees.liste_airlines
 
     # ---------------------------------------------------------
     # Chargement et préparation des données
@@ -84,7 +92,7 @@ class ModeleVol:
         self._le = LabelEncoder()
         df["Airline_Encoded"] = self._le.fit_transform(df["Airline"])
         df["Length_Carre"] = df["Length"] ** 2  # Calcul vectorisé (NumPy)
-        self._liste_airlines = sorted(df["Airline"].unique())
+        self.donnees.charger_airlines(sorted(df["Airline"].unique()))
         return df
 
     # ---------------------------------------------------------
@@ -92,7 +100,8 @@ class ModeleVol:
     # ---------------------------------------------------------
     def entrainer(self) -> dict:
         """Entraîne le kNN, l'évalue sur le test et retourne les scores."""
-        print("self.donnees.data()",self.donnees.data)
+        if self.donnees.data is None:
+            self.donnees.charger_donnees(self._chemin_csv)
         df = self.preparer(self.donnees.data)
         
         X = df[self._features]
@@ -157,7 +166,8 @@ class ModeleVol:
 
         time_vol = (heure * 60) + minutes
         airline_encoded = self._le.transform([airline_choisie])[0]
-        nouveau_vol = np.array([[airline_encoded, jour_semaine, time_vol, duree, duree ** 2]])
+        nouveau_vol = pd.DataFrame([[airline_encoded, jour_semaine, time_vol, duree, duree ** 2]],
+                                   columns=self._features)
         return self.donnees._scaler.transform(nouveau_vol)
 
     def predire(self, airline_choisie, jour_semaine, heure, minutes, duree) -> np.ndarray:
@@ -170,7 +180,7 @@ class ModeleVol:
         x = self._preparer_vol(airline_choisie, jour_semaine, heure, minutes, duree)
         distances, indices = self._knn.kneighbors(x)
         vols = self.donnees.X_train.iloc[indices[0]].copy()
-        vols["Delay"] = self.y_train.iloc[indices[0]].values
+        vols["Delay"] = self.donnees.y_train.iloc[indices[0]].values
         vols["Distance"] = distances[0]
         return vols
 
@@ -185,7 +195,7 @@ class ModeleVol:
         if((os.path.exists(os.path.join(dossier, "knn.joblib")) and os.path.exists(os.path.join(dossier, "scaler.joblib")) and os.path.exists(os.path.join(dossier, "label_encoder.joblib")) and os.path.exists(os.path.join(dossier, "metadonnees.json")))==False):
             raise ValueError("file not found")
         self._knn = joblib.load(os.path.join(dossier, "knn.joblib"))
-        self._scaler = joblib.load(os.path.join(dossier, "scaler.joblib"))
+        self.donnees._scaler = joblib.load(os.path.join(dossier, "scaler.joblib"))
         self._le = joblib.load(os.path.join(dossier, "label_encoder.joblib"))
 
         # Charger les métadonnées (pour _liste_airlines et _features)
@@ -201,19 +211,19 @@ class ModeleVol:
     # ---------------------------------------------------------
     def sauvegarder(self, scores: dict, dossier: str = "modeles") -> None:
         """Sauvegarde le modèle (joblib) et les métadonnées (JSON)."""
-        if self._knn is None or self._scaler is None or self._le is None:
+        if self._knn is None or self.donnees._scaler is None or self._le is None:
             raise RuntimeError("Le modèle doit être entraîné avant d'être sauvegardé.")
 
         os.makedirs(dossier, exist_ok=True)
         joblib.dump(self._knn, os.path.join(dossier, "knn.joblib"))
-        joblib.dump(self._scaler, os.path.join(dossier, "scaler.joblib"))
+        joblib.dump(self.donnees._scaler, os.path.join(dossier, "scaler.joblib"))
         joblib.dump(self._le, os.path.join(dossier, "label_encoder.joblib"))
 
         metadonnees = {
             "features": self._features,
             "cible": "Delay",
-            "airlines_possibles":self.donnees.airlines,
-            "dataset":self.donnees.data,
+            "airlines_possibles": [str(a) for a in self.donnees.liste_airlines],
+            "dataset": self._chemin_csv,
             "intervalle_dayofweek": [1, 7],
             "intervalle_time": [0, 1439],
             "intervalle_length": [0, 655],

@@ -9,7 +9,6 @@ from .historique import Historique
 from .model import ModeleVol
 from .variables import variables_depuis_metadonnees
 
-CHEMIN_CSV = "donnees/Airlines.csv"
 JOURS = [("1 - Lundi", 1), ("2 - Mardi", 2), ("3 - Mercredi", 3), ("4 - Jeudi", 4),
          ("5 - Vendredi", 5), ("6 - Samedi", 6), ("7 - Dimanche", 7)]
 
@@ -107,17 +106,3 @@ class Interface:
                 tableau_historique = gr.Dataframe(value=self._historique.lire)
                 gr.Button("Rafraîchir l'historique").click(self._historique.lire, None, tableau_historique)
         return demo
-
-def main() -> None:
-    """Charge le modèle sauvegardé (ou l'entraîne et le sauvegarde une fois), puis lance l'interface."""
-    modele = ModeleVol(CHEMIN_CSV)
-    try:
-        modele.charger()
-    except FileNotFoundError as e:
-        print(f"{e} : entraînement du modèle…")
-        modele.sauvegarder(modele.entrainer())
-        modele.charger()
-    Interface(modele, Historique()).construire_interface().launch()
-
-if __name__ == "__main__":
-    main()

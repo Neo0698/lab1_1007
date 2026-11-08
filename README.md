@@ -50,4 +50,4 @@ L’heure de départ et la compagnie sont les variables les plus utiles (de 22 %
 pip install -r requirements.txt
 python -m src.create_dataset *pour creer le csv en fonction du modèle huggingface*
 python -m src.model *entraine le modèle*
-python -m src.interface *lance l'interface graphique*
+python -m src.main *lance l'interface graphique*

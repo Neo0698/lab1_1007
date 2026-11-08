@@ -5,6 +5,7 @@
 ## Prédiction du retard d'un vol en utilisant un KNN
 
 ### Structure du code
+```
 donnees/
 	Airlines.csv          # jeu de données
 	exploration.png       # graphique d'exploration
@@ -22,7 +23,7 @@ src/
 
 tests/
 	test_model.py
-
+```
 
 ### Description
 L'application estime si l'avion via arriver en retard( on estime qu'un vol est en retard ) selon la compagnie aérienne, le jour de la semaine, l'heure de départ prévue et la durée prévue du vol. Un modèle des k plus proches voisins (k-NN) fait la prédiction, et l'interface (Gradio) affiche les probabilités ainsi que les vols passés les plus proches du vol saisi.

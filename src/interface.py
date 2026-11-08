@@ -2,8 +2,12 @@
 
 import gradio as gr
 from matplotlib.figure import Figure
-import model as mod
 import pandas as pd
+
+from .exceptions import DonneeInvalideError
+from .historique import Historique
+from .model import ModeleVol
+from .variables import variables_depuis_metadonnees
 
 CHEMIN_CSV = "donnees/Airlines.csv"
 JOURS = [("1 - Lundi", 1), ("2 - Mardi", 2), ("3 - Mercredi", 3), ("4 - Jeudi", 4),
@@ -19,27 +23,22 @@ CSS = """
 </style>
 """
 
-class DonneeInvalideError(Exception):
-    """Levée quand une saisie de l'utilisateur est vide ou hors intervalle."""
-    pass
+class Interface:
+    """Application Gradio : contient le modèle, l'historique et les variables d'entrée."""
 
-class Interface:  # ✅ Classe renommée en "Interface" (convention Python)
-    def __init__(self):
-        pass
+    def __init__(self, modele: ModeleVol, historique: Historique) -> None:
+        self._modele = modele
+        self._historique = historique
+        self._variables = variables_depuis_metadonnees(modele.metadonnees)
 
-    def valider(self, compagnie, jour, heure, minutes, duree) -> None:
-        """Vérifie les saisies ; lève DonneeInvalideError avec un message clair."""
-        if not compagnie:
-            raise DonneeInvalideError("Veuillez choisir une compagnie aérienne.")
-        for nom, valeur in (("jour", jour), ("heure", heure), ("minutes", minutes), ("durée", duree)):
-            if valeur is None:
-                raise DonneeInvalideError(f"Le champ « {nom} » est vide.")
-        if not 0 <= heure <= 23:
-            raise DonneeInvalideError("L'heure doit être comprise entre 0 et 23.")
-        if not 0 <= minutes <= 59:
-            raise DonneeInvalideError("Les minutes doivent être comprises entre 0 et 59.")
-        if duree <= 0:
-            raise DonneeInvalideError("La durée du vol doit être positive.")
+    def valider(self, compagnie, aeroport, jour, heure, minutes, duree) -> list:
+        """Valide chaque saisie avec sa variable et renvoie les valeurs converties.
+
+        Raises:
+            DonneeInvalideError: si une saisie est vide, non numérique ou hors intervalle.
+        """
+        saisies = (compagnie, aeroport, jour, heure, minutes, duree)
+        return [variable.valider(saisie) for variable, saisie in zip(self._variables, saisies)]
 
     def creer_graphique_voisins(self, voisins_df: pd.DataFrame, a_l_heure: float, retarde: float) -> Figure:
         """Génère le graphique des k voisins les plus proches."""
@@ -56,47 +55,41 @@ class Interface:  # ✅ Classe renommée en "Interface" (convention Python)
         fig.tight_layout()
         return fig
 
-    def creer_predicteur(self, modele):
+    def predire(self, compagnie, aeroport, jour, heure, minutes, duree):
+        """Callback du bouton : valide, prédit, enregistre dans l'historique et affiche.
+
+        Returns:
+            (html du résultat, figure des voisins, tableau des voisins) ;
+            en cas de saisie invalide : (message d'erreur, None, None).
         """
-        fonction predire associé avec:
-        bouton.click(
-                self.creer_predicteur(modele),
-                [compagnie, jour, heure, minutes, duree],
-                [sortie, graphique, tableau]
-            )
-        une unique fonction doit être présente pour que la librairie sache quoi appeler lors que le boutton est cliqué
-        """
-        def predire(compagnie, jour, heure, minutes, duree):
-            try:
-                self.valider(compagnie, jour, heure, minutes, duree) #verification des données avec pytest
+        try:
+            compagnie, aeroport, jour, heure, minutes, duree = self.valider(
+                compagnie, aeroport, jour, heure, minutes, duree)
+            prob = self._modele.predire(compagnie, aeroport, int(jour), int(heure), int(minutes), duree)
+            voisins = self._modele.voisins(compagnie, aeroport, int(jour), int(heure), int(minutes), duree)
+        except DonneeInvalideError as e:
+            return f'<div class="resultat error">{e}</div>', None, None
 
-                prob = modele.predire(compagnie, float(jour), float(heure),
-                                      float(minutes), float(duree))
-               
-                voisins = modele.voisins(compagnie, float(jour), float(heure),
-                                         float(minutes), float(duree))
-            except DonneeInvalideError as e:
-                return f'<div class="resultat error">{e}</div>', None, None
-            except (ValueError, KeyError) as e:
-                print("Erreur :", e)
-                return '<div class="resultat error">Veuillez entrer des valeurs valides.</div>', None, None
+        a_l_heure, retarde = round(prob[0] * 100, 2), round(prob[1] * 100, 2)
+        classe = "danger" if retarde > 50 else "success"
+        html = (f'<div class="resultat {classe}">Résultats des probabilités :<br><br>'
+                f"À l'heure : {a_l_heure}%<br>Retardé : {retarde}%</div>")
 
-            a_l_heure, retarde = round(prob[0] * 100, 2), round(prob[1] * 100, 2)
-            classe = "danger" if retarde > 50 else "success"
-            html = (f'<div class="resultat {classe}">Résultats des probabilités :<br><br>'
-                    f"À l'heure : {a_l_heure}%<br>Retardé : {retarde}%</div>")
-            
-            return html, self.creer_graphique_voisins(voisins, a_l_heure, retarde), voisins
-        return predire
+        self._historique.ajouter(compagnie, aeroport, jour, heure, minutes, duree, prob[1])
+        return html, self.creer_graphique_voisins(voisins, a_l_heure, retarde), voisins
 
-    def construire_interface(self, modele: mod.ModeleVol) -> gr.Blocks:
-        """Construit l'interface Gradio autour d'un modèle déjà entraîné."""
-        compagnies = list(modele._liste_airlines)
+    def construire_interface(self) -> gr.Blocks:
+        """Construit l'interface Gradio à partir des métadonnées du modèle chargé."""
+        compagnies = self._variables[0].valeurs
+        aeroports = self._variables[1].valeurs
         with gr.Blocks(title="Prédiction de Retard de Vol (k-NN)") as demo:
             gr.HTML(CSS)
             gr.Markdown("## Prédiction de Vol (k-NN)")
             compagnie = gr.Dropdown(compagnies, label="Compagnie aérienne",
                                     value=compagnies[0] if compagnies else None)
+            aeroport = gr.Dropdown(aeroports, label="Aéroport de départ (code IATA, ex. JFK)",
+                                   value="JFK" if "JFK" in aeroports else (aeroports[0] if aeroports else None),
+                                   filterable=True)
             jour = gr.Dropdown(JOURS, label="Jour de la semaine (1 à 7)", value=1)
             heure = gr.Number(label="Heure de départ (0-23)", value=14, precision=0)
             minutes = gr.Number(label="Minutes de départ (0-59)", value=0, precision=0)
@@ -106,23 +99,25 @@ class Interface:  # ✅ Classe renommée en "Interface" (convention Python)
             graphique = gr.Plot(label="Les vols les plus proches")
             tableau = gr.Dataframe(label="Détail des vols utilisés pour la décision")
             bouton.click(
-                self.creer_predicteur(modele),
-                [compagnie, jour, heure, minutes, duree],
+                self.predire,
+                [compagnie, aeroport, jour, heure, minutes, duree],
                 [sortie, graphique, tableau]
             )
+            with gr.Accordion("Historique des prédictions", open=False):
+                tableau_historique = gr.Dataframe(value=self._historique.lire)
+                gr.Button("Rafraîchir l'historique").click(self._historique.lire, None, tableau_historique)
         return demo
 
 def main() -> None:
-    """Entraîne le modèle puis lance l'interface."""
-    modele = mod.ModeleVol(CHEMIN_CSV)
+    """Charge le modèle sauvegardé (ou l'entraîne et le sauvegarde une fois), puis lance l'interface."""
+    modele = ModeleVol(CHEMIN_CSV)
     try:
         modele.charger()
-    except Exception as e:
-        print(e)
-        modele.entrainer()
-    print("_liste_airlines", modele._liste_airlines)
-    interface = Interface()  # ✅ Instanciation corrigée
-    interface.construire_interface(modele).launch()
+    except FileNotFoundError as e:
+        print(f"{e} : entraînement du modèle…")
+        modele.sauvegarder(modele.entrainer())
+        modele.charger()
+    Interface(modele, Historique()).construire_interface().launch()
 
 if __name__ == "__main__":
     main()

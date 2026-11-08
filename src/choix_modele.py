@@ -1,4 +1,4 @@
-import model as mod
+from . import model as mod
 import matplotlib.pyplot as plt
 CHEMIN_CSV = "donnees/Airlines.csv"
 modele = mod.ModeleVol(CHEMIN_CSV)

@@ -9,3 +9,9 @@ __pycache__/
 
 # Fichiers système
 .DS_Store
+
+# Modèle kNN entraîné (174 Mo, trop gros pour GitHub) : recréé par python -m src.model
+modeles/knn.joblib
+
+# Historique local des prédictions
+historique/

@@ -1,4 +1,4 @@
-"""Génère airlines.csv (Airline,DayOfWeek,Time,Length,Delay) à partir du jeu
+"""Génère Airlines.csv (Airline,Origin,DayOfWeek,Time,Length,Delay) à partir du jeu
 Hugging Face Donny-Guo/airline-delay (sous-ensemble flight_detail).
 
 L'échantillon final est :
@@ -12,7 +12,7 @@ Le jeu entier (61,6 M de lignes) est parcouru une fois en flux, par lots, sans
 tout charger en mémoire. Prévoir plusieurs minutes.
 
 Installation :  pip install datasets pandas numpy
-Lancement   :  python creer_csv.py
+Lancement   :  python -m src.create_dataset
 """
 import numpy as np
 import pandas as pd
@@ -22,13 +22,13 @@ CONFIG = "flight_detail"
 NB_LIGNES = 2_000_000         # total final (moitié en retard, moitié à l'heure)
 SEUIL_RETARD_MIN = 15       # retard à l'arrivée (min) à partir duquel Delay = 1
 GRAINE = 42                 # reproductibilité
-SORTIE = "donnees/airlines.csv"
+SORTIE = "donnees/Airlines.csv"
 MAX_PAR_GROUPE = 400_000     # vols gardés au maximum par (compagnie, classe)
 LOTS_PAR_FUSION = 20        # fusion de l'échantillon tous les N lots (plus rapide)
 TAILLE_LOT = 500_000         # lignes lues à la fois
 MAX_LIGNES_LUES = 5_000_000      # ex. 5_000_000 pour un essai rapide (None = tout lire)
 
-COLONNES = ["fl_date", "op_carrier", "crs_dep_time", "crs_elapsed_time",
+COLONNES = ["fl_date", "op_carrier", "origin", "crs_dep_time", "crs_elapsed_time",
             "arr_delay", "cancelled", "diverted"]
 
 
@@ -36,16 +36,18 @@ def preparer_lot(lot: pd.DataFrame, seuil: int, rng: np.random.Generator) -> pd.
     """Filtre les vols inutilisables et calcule les colonnes finales d'un lot.
 
     Reçoit un lot brut, le seuil de retard et un générateur aléatoire ; renvoie
-    un DataFrame Airline, DayOfWeek, Time, Length, Delay + une clé aléatoire
+    un DataFrame Airline, Origin, DayOfWeek, Time, Length, Delay + une clé aléatoire
     « cle » servant à tirer des échantillons uniformes.
     """
     valide = (~lot["cancelled"].astype(bool) & ~lot["diverted"].astype(bool)
               & lot["arr_delay"].notna() & lot["crs_dep_time"].notna()
+              & lot["origin"].notna()
               & (lot["crs_elapsed_time"] > 0))   # le jeu contient des durées négatives
     v = lot[valide]
     hhmm = v["crs_dep_time"].astype(int)
     return pd.DataFrame({
         "Airline": v["op_carrier"].to_numpy(),
+        "Origin": v["origin"].to_numpy(),                                       # aéroport de départ (code IATA)
         "DayOfWeek": pd.to_datetime(v["fl_date"]).dt.dayofweek.to_numpy() + 1,  # 1 = lundi
         "Time": (((hhmm // 100) * 60 + hhmm % 100) % 1440).to_numpy(),          # min depuis minuit
         "Length": v["crs_elapsed_time"].astype(int).to_numpy(),
@@ -89,7 +91,7 @@ def equilibrer(garde: pd.DataFrame, nb_total: int) -> pd.DataFrame:
     équitablement entre les compagnies.
 
     Reçoit les vols gardés et le nombre total de lignes voulu ; renvoie le
-    DataFrame mélangé (colonnes Airline, DayOfWeek, Time, Length, Delay).
+    DataFrame mélangé (colonnes Airline, Origin, DayOfWeek, Time, Length, Delay).
     """
     par_classe = {d: garde[garde["Delay"] == d] for d in (0, 1)}
     moitie = min(nb_total // 2, len(par_classe[0]), len(par_classe[1]))

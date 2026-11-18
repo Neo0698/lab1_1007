@@ -10,7 +10,7 @@ import pytest
 # Ajoute src/ au path Python
 sys.path.append(str(Path(__file__).parent.parent))
 
-from src.model import ModeleVol, DonneeInvalideError, taux_retard_lisse
+from src.model import ModeleVol, DonneeInvalideError, PoidsVariables, taux_retard_lisse
 
 def fabriquer_vols(nb: int = 60) -> pd.DataFrame:
     """
@@ -240,3 +240,40 @@ def test_taux_retard_lisse_tire_les_petits_aeroports_vers_le_taux_global():
     assert taux["GRAND"] == pytest.approx((800 + 20 * taux_global) / 1020)
     assert taux["PETIT"] == pytest.approx((2 + 20 * taux_global) / 22)
     assert abs(taux["PETIT"] - taux_global) < abs(1.0 - taux_global)
+
+
+def test_poids_negatif_leve_value_error():
+    """Un poids négatif n'a pas de sens : il doit être refusé."""
+    with pytest.raises(ValueError):
+        PoidsVariables(k_jour=-1)
+
+
+def test_poids_appliquer_multiplie_chaque_colonne():
+    """Chaque colonne est multipliée par le poids de sa variable ; la durée pèse aussi sur Length_Carre."""
+    poids = PoidsVariables(k_duree=2, k_jour=0)
+    X = np.ones((3, 3))
+    resultat = poids.appliquer(X, ["DayOfWeek", "Length", "Length_Carre"])
+    assert (resultat == np.array([[0.0, 2.0, 2.0]] * 3)).all()
+
+
+def test_poids_nul_sur_la_duree_rend_la_duree_sans_effet(chemin_csv):
+    """Avec k_duree=0, un vol court et un vol long ont exactement la même prédiction."""
+    modele = ModeleVol(chemin_csv, poids=PoidsVariables(k_duree=0))
+    modele.entrainer()
+    court = modele.predire("AA", "JFK", 3, 10, 30, 80)
+    long = modele.predire("AA", "JFK", 3, 10, 30, 590)
+    assert court == pytest.approx(long)
+
+
+def test_poids_sauvegardes_et_recharges(chemin_csv, tmp_path):
+    """Les poids sont écrits dans le JSON et relus par charger() : mêmes prédictions après rechargement."""
+    poids = PoidsVariables(k_heure=2, k_jour=0.5)
+    modele = ModeleVol(chemin_csv, poids=poids)
+    dossier = str(tmp_path / "modeles")
+    modele.sauvegarder(modele.entrainer(), dossier=dossier)
+
+    recharge = ModeleVol(chemin_csv)
+    recharge.charger(dossier)
+    assert recharge.poids.en_dict() == poids.en_dict()
+    assert recharge.predire("DL", "LAX", 5, 18, 0, 300) == pytest.approx(
+        modele.predire("DL", "LAX", 5, 18, 0, 300))

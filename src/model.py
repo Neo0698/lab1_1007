@@ -14,13 +14,12 @@ from sklearn.preprocessing import StandardScaler, LabelEncoder
 from sklearn.neighbors import KNeighborsClassifier
 from sklearn.dummy import DummyClassifier
 
-from .dataset import Dataset
+from .Data import Data
 from .exceptions import DonneeInvalideError
 from .outils import chronometrer
 
 def sigmoid_weights(distances):
-    # On peut inverser et centrer selon un seuil, par exemple :
-    # Plus la distance est grande, plus le poids tend vers 0.
+    
     return 1 / (1 + np.exp(distances - 1.0))
 
 COLONNES_CSV = {"Airline", "Origin", "DayOfWeek", "Time", "Length", "Delay"}
@@ -28,21 +27,18 @@ FEATURES = ["Airline_Encoded", "Origin_Taux", "DayOfWeek", "Time", "Length", "Le
 
 
 def taux_retard_lisse(origines: pd.Series, retards: pd.Series, poids: int = 20) -> pd.Series:
-    """Calcule le taux de retard de chaque aéroport, lissé vers le taux global.
+    """Calcule le taux de retard de chaque aéroport, en fonction de toutes les lignes contenant cette aeroport
 
-    taux = (retards de l'aéroport + poids × taux global) / (vols de l'aéroport + poids)
-    Un petit aéroport (peu de vols) reste proche du taux global ; un grand aéroport
-    garde son propre taux. Calcul vectorisé (pandas/NumPy, sans boucle Python).
-
+   
     Args:
         origines: Aéroport de départ de chaque vol.
         retards: 1 si le vol est en retard, 0 sinon (même index que origines).
         poids: Nombre de « vols fictifs » au taux global ajoutés à chaque aéroport.
 
-    Returns:
+    retourne:
         Série indexée par aéroport, valeurs entre 0 et 1.
 
-    Raises:
+    erreur:
         ValueError: si aucun vol n'est fourni.
     """
     if len(retards) == 0:
@@ -52,203 +48,64 @@ def taux_retard_lisse(origines: pd.Series, retards: pd.Series, poids: int = 20) 
     return (stats["sum"] + poids * taux_global) / (stats["count"] + poids)
 
 
-class Data(Dataset):
-    """Jeu de données de vols : chargement, découpage entraînement/test et exploration.
+class PoidsVariables:
+    """Poids de chaque variable dans la distance du kNN (1 = poids normal, 0 = ignorée).
+
+    Les poids s'appliquent après la normalisation : un poids k multiplie
+    l'importance de la variable dans la distance euclidienne par k².
 
     Args:
-        data: DataFrame déjà chargé (facultatif).
-        airlines: Liste des compagnies connues (facultatif).
+        k_duree: Poids de la durée du vol (Length et Length_Carre).
+        k_aeroport: Poids du taux de retard de l'aéroport de départ.
+        k_jour: Poids du jour de la semaine.
+        k_heure: Poids de l'heure de départ.
+        k_compagnie: Poids de la compagnie.
+
+    erreur:
+        ValueError: si un poids est négatif.
     """
 
-    def __init__(self, data: pd.DataFrame | None = None, airlines: list[str] | None = None) -> None:
-        self._data = data
-        self._liste_airlines: list[str] = list(airlines) if airlines else []
-        self._liste_aeroports: list[str] = []
-        self._features = list(FEATURES)
-        self._df_train: pd.DataFrame | None = None
-        self._df_test: pd.DataFrame | None = None
+    def __init__(self, k_duree: float = 1.0, k_aeroport: float = 1.0, k_jour: float = 1.0,
+                 k_heure: float = 1.0, k_compagnie: float = 1.0) -> None:
+        if min(k_duree, k_aeroport, k_jour, k_heure, k_compagnie) < 0:
+            raise ValueError("Les poids doivent être positifs ou nuls.")
+        self._poids = {
+            "Airline_Encoded": k_compagnie,
+            "Origin_Taux": k_aeroport,
+            "DayOfWeek": k_jour,
+            "Time": k_heure,
+            "Length": k_duree,
+            "Length_Carre": k_duree,
+        }
 
-    # --- Accès en lecture --------------------------------------------------
-    @property
-    def data(self) -> pd.DataFrame | None:
-        """Données brutes chargées depuis le CSV."""
-        return self._data
+    @classmethod
+    def depuis_dict(cls, poids: dict) -> "PoidsVariables":
+        """Recrée les poids à partir du dictionnaire enregistré dans le JSON."""
+        return cls(k_duree=poids.get("Length", 1.0), k_aeroport=poids.get("Origin_Taux", 1.0),
+                   k_jour=poids.get("DayOfWeek", 1.0), k_heure=poids.get("Time", 1.0),
+                   k_compagnie=poids.get("Airline_Encoded", 1.0))
 
-    @property
-    def liste_airlines(self) -> list[str]:
-        """Compagnies connues (triées)."""
-        return self._liste_airlines
+    def appliquer(self, X: np.ndarray, features: list[str]) -> np.ndarray:
+        """Multiplie chaque colonne de X (déjà normalisé) par son poids."""
+        vecteur = np.array([self._poids.get(f, 1.0) for f in features])
+        return np.asarray(X) * vecteur
 
-    @property
-    def liste_aeroports(self) -> list[str]:
-        """Aéroports de départ connus (triés)."""
-        return self._liste_aeroports
-
-    @property
-    def features(self) -> list[str]:
-        """Colonnes utilisées comme caractéristiques par le modèle."""
-        return self._features
-
-    @features.setter
-    def features(self, colonnes: list[str]) -> None:
-        self._features = list(colonnes)
-
-    def _verifier_decoupage(self) -> None:
-        """Lève RuntimeError si train_test_split() n'a pas encore été appelé."""
-        if self._df_train is None or self._df_test is None:
-            raise RuntimeError("Données non découpées : appeler train_test_split() d'abord.")
-
-    @property
-    def X_train(self) -> pd.DataFrame:
-        """Caractéristiques de l'ensemble d'entraînement."""
-        self._verifier_decoupage()
-        return self._df_train[self._features]
-
-    @property
-    def y_train(self) -> pd.Series:
-        """Cible (Delay) de l'ensemble d'entraînement."""
-        self._verifier_decoupage()
-        return self._df_train["Delay"]
-
-    @property
-    def X_test(self) -> pd.DataFrame:
-        """Caractéristiques de l'ensemble de test."""
-        self._verifier_decoupage()
-        return self._df_test[self._features]
-
-    @property
-    def y_test(self) -> pd.Series:
-        """Cible (Delay) de l'ensemble de test."""
-        self._verifier_decoupage()
-        return self._df_test["Delay"]
-
-    @property
-    def df_train(self) -> pd.DataFrame:
-        """Ensemble d'entraînement complet (toutes les colonnes)."""
-        self._verifier_decoupage()
-        return self._df_train
-
-    # --- Modification de l'état --------------------------------------------
-    def charger_donnees(self, path: str) -> pd.DataFrame:
-        """Lit le CSV et le garde en mémoire.
-
-        Raises:
-            FileNotFoundError: si le fichier n'existe pas.
-        """
-        if not os.path.exists(path):
-            raise FileNotFoundError(f"Erreur : le fichier '{path}' est introuvable.")
-        self._data = pd.read_csv(path)
-        return self._data
-
-    def charger_airlines(self, airlines: list[str]) -> None:
-        """Remplace la liste des compagnies connues."""
-        self._liste_airlines = list(airlines)
-
-    def charger_aeroports(self, aeroports: list[str]) -> None:
-        """Remplace la liste des aéroports de départ connus."""
-        self._liste_aeroports = list(aeroports)
-
-    def train_test_split(self, df: pd.DataFrame, test_size: float = 0.2,
-                         graine: int = 42) -> None:
-        """Découpe df en ensembles d'entraînement et de test (graine fixée : reproductible)."""
-        self._df_train, self._df_test = train_test_split(df, test_size=test_size,
-                                                         random_state=graine)
-
-    def transformer(self, fonction: Callable[[pd.DataFrame], pd.DataFrame]) -> None:
-        """Applique fonction (DataFrame -> DataFrame) aux ensembles d'entraînement et de test."""
-        self._verifier_decoupage()
-        self._df_train = fonction(self._df_train)
-        self._df_test = fonction(self._df_test)
-
-    # --- Exploration ---------------------------------------------------------
-    def resume_qualite(self) -> pd.DataFrame:
-        """Résume la qualité des données, une ligne par colonne.
-
-        Returns:
-            DataFrame avec le type, le nombre de valeurs manquantes, le min et le max.
-
-        Raises:
-            RuntimeError: si aucune donnée n'est chargée.
-        """
-        if self._data is None:
-            raise RuntimeError("Aucune donnée chargée : appeler charger_donnees() d'abord.")
-        return pd.DataFrame({
-            "type": self._data.dtypes.astype(str),
-            "manquantes": self._data.isna().sum(),
-            "min": self._data.min(numeric_only=True),
-            "max": self._data.max(numeric_only=True),
-        })
-
-    def graphique_exploration(self, chemin_sortie: str) -> str:
-        """Enregistre un graphique d'exploration du taux de retard (PNG).
-
-        Quatre vues : par heure de départ, par jour de la semaine, par compagnie
-        et distribution des durées de vol selon le retard.
-
-        Args:
-            chemin_sortie: Chemin du fichier image à créer.
-
-        Returns:
-            Le chemin du fichier enregistré.
-
-        Raises:
-            RuntimeError: si aucune donnée n'est chargée.
-        """
-        if self._data is None:
-            raise RuntimeError("Aucune donnée chargée : appeler charger_donnees() d'abord.")
-        df = self._data.dropna()
-        par_heure = df.groupby(df["Time"] // 60)["Delay"].mean() * 100
-        par_jour = df.groupby("DayOfWeek")["Delay"].mean() * 100
-        par_compagnie = df.groupby("Airline")["Delay"].mean() * 100
-        compagnies = sorted(par_compagnie.index, key=lambda c: par_compagnie[c])
-
-        fig = Figure(figsize=(13, 9))
-        (ax_heure, ax_jour), (ax_cie, ax_duree) = fig.subplots(2, 2)
-
-        ax_heure.bar(par_heure.index, par_heure.values, color="#c62828")
-        ax_heure.set(title="Taux de retard selon l'heure de départ",
-                     xlabel="Heure de départ (h)", ylabel="Vols en retard (%)")
-
-        ax_jour.bar(par_jour.index, par_jour.values, color="#ef6c00")
-        ax_jour.set_xticks(range(1, 8), ["Lun", "Mar", "Mer", "Jeu", "Ven", "Sam", "Dim"])
-        ax_jour.set(title="Taux de retard selon le jour", xlabel="Jour de la semaine",
-                    ylabel="Vols en retard (%)")
-
-        ax_cie.barh(compagnies, [par_compagnie[c] for c in compagnies], color="#1565c0")
-        ax_cie.set(title="Taux de retard par compagnie", xlabel="Vols en retard (%)",
-                   ylabel="Compagnie")
-
-        for delay, couleur, nom in ((0, "#2e7d32", "À l'heure"), (1, "#c62828", "En retard")):
-            ax_duree.hist(df.loc[df["Delay"] == delay, "Length"], bins=40, alpha=0.6,
-                          color=couleur, label=nom)
-        ax_duree.set(title="Durée des vols selon le retard", xlabel="Durée du vol (min)",
-                     ylabel="Nombre de vols")
-        ax_duree.legend()
-
-        fig.tight_layout()
-        dossier = os.path.dirname(chemin_sortie)
-        if dossier:
-            os.makedirs(dossier, exist_ok=True)
-        fig.savefig(chemin_sortie, dpi=120)
-        return chemin_sortie
-
-    # --- Méthodes spéciales --------------------------------------------------
-    def __add__(self, autre: "Data") -> "Data":
-        """Renvoie un nouveau Data qui met bout à bout les lignes des deux jeux."""
-        if not isinstance(autre, Data):
-            return NotImplemented
-        lignes = pd.concat([self._data, autre.data], ignore_index=True)
-        compagnies = sorted(set(self._liste_airlines) | set(autre.liste_airlines))
-        return Data(lignes, compagnies)
+    def en_dict(self) -> dict:
+        """Poids à enregistrer dans le JSON."""
+        return dict(self._poids)
 
     def __repr__(self) -> str:
-        n = 0 if self._data is None else len(self._data)
-        return f"Data({n} lignes, {len(self._liste_airlines)} compagnies)"
+        return f"PoidsVariables({self._poids})"
 
 
-class vol:
-    def __init__(self,k_duree=1, k_aeroport=1, k_day=1):
-        return
+def poids_retenus() -> PoidsVariables:
+    """Poids choisis avec choix_modele.score_selon_poids (jeu complet, k=31).
+
+    Le jour de la semaine influence très peu le retard : on réduit fortement son poids (0,2).
+    La compagnie compte 3 fois plus et la durée 2 fois moins.
+    Exactitude : 64,5 % contre 63,4 % avec tous les poids à 1 (65,3 % avec un jour à 0).
+    """
+    return PoidsVariables(k_jour=0.2, k_compagnie=3, k_duree=0.5)
 
 
 class ModeleVol:
@@ -260,11 +117,14 @@ class ModeleVol:
     Args:
         chemin_csv: Chemin du jeu de données.
         n: Nombre de voisins du kNN.
+        poids: Poids des variables dans la distance (par défaut, poids_retenus()).
     """
 
-    def __init__(self, chemin_csv: str = "donnees/Airlines.csv", n: int = 31) -> None:
+    def __init__(self, chemin_csv: str = "donnees/Airlines.csv", n: int = 31,
+                 poids: PoidsVariables | None = None) -> None:
         self._chemin_csv = chemin_csv
         self.nb_neighbors = n
+        self.poids = poids if poids is not None else poids_retenus()
         self.donnees = Data()
         self._le: LabelEncoder | None = None
         self._taux_aeroports: dict[str, float] | None = None
@@ -283,7 +143,7 @@ class ModeleVol:
     def metadonnees(self) -> dict:
         """Métadonnées du modèle chargé ou sauvegardé.
 
-        Raises:
+        erreur:
             RuntimeError: si aucun modèle n'a été chargé ni sauvegardé.
         """
         if self._metadonnees is None:
@@ -296,7 +156,7 @@ class ModeleVol:
     def preparer(self, df: pd.DataFrame) -> pd.DataFrame:
         """Encode la compagnie, crée Length_Carre et retourne le DataFrame prêt.
 
-        Raises:
+        erreur:
             ValueError: si une colonne attendue (dont Origin) manque dans les données.
         """
         manquantes = COLONNES_CSV - set(df.columns)
@@ -326,7 +186,7 @@ class ModeleVol:
     def entrainer(self) -> dict:
         """Entraîne le kNN, l'évalue sur le test et retourne les scores.
 
-        Raises:
+        erreur:
             FileNotFoundError: si le CSV est introuvable.
             ValueError: si une colonne attendue manque dans le CSV.
         """
@@ -342,10 +202,13 @@ class ModeleVol:
         self.donnees.charger_aeroports(sorted(self._taux_aeroports))
         self.donnees.transformer(self._ajouter_taux_aeroport)
 
-        # Normalisation : apprise sur l'entraînement, appliquée au test
+        # Normalisation (apprise sur l'entraînement, appliquée au test), puis poids des variables
+        features = self.donnees.features
         self._scaler = StandardScaler()
-        self._X_train_scaled = self._scaler.fit_transform(self.donnees.X_train)
-        self._X_test_scaled = self._scaler.transform(self.donnees.X_test)
+        self._X_train_scaled = self.poids.appliquer(
+            self._scaler.fit_transform(self.donnees.X_train), features)
+        self._X_test_scaled = self.poids.appliquer(
+            self._scaler.transform(self.donnees.X_test), features)
 
         # Référence (classe majoritaire)
         reference = DummyClassifier(strategy="most_frequent")
@@ -370,7 +233,7 @@ class ModeleVol:
 
         À appeler après entrainer() (utilise les mêmes données normalisées).
 
-        Raises:
+        erreur:
             RuntimeError: si entrainer() n'a pas été appelé.
         """
         if self._X_train_scaled is None:
@@ -389,7 +252,7 @@ class ModeleVol:
                       heure: int, minutes: int, duree: float) -> np.ndarray:
         """Valide les saisies et renvoie le vol normalisé.
 
-        Raises:
+        erreur:
             RuntimeError: si le modèle n'est pas entraîné ou chargé.
             DonneeInvalideError: si une saisie est inconnue ou hors intervalle.
         """
@@ -417,13 +280,13 @@ class ModeleVol:
         }
         features = self.donnees.features
         nouveau_vol = pd.DataFrame([[valeurs[f] for f in features]], columns=features)
-        return self._scaler.transform(nouveau_vol)
+        return self.poids.appliquer(self._scaler.transform(nouveau_vol), features)
 
     def predire(self, airline_choisie: str, aeroport: str, jour_semaine: int,
                 heure: int, minutes: int, duree: float) -> np.ndarray:
         """Retourne les probabilités [p_a_l_heure, p_retard] pour un vol.
 
-        Raises:
+        erreur:
             RuntimeError: si le modèle n'est pas entraîné ou chargé.
             DonneeInvalideError: si une saisie est invalide.
         """
@@ -454,7 +317,7 @@ class ModeleVol:
         Args:
             dossier: Chemin vers le dossier contenant les fichiers .joblib et .json.
 
-        Raises:
+        erreur:
             FileNotFoundError: si un des fichiers du modèle ou le CSV est absent.
         """
         for nom in ("knn.joblib", "scaler.joblib", "label_encoder.joblib", "metadonnees.json"):
@@ -466,6 +329,8 @@ class ModeleVol:
         self.donnees.features = self._metadonnees["features"]
         self._taux_aeroports = self._metadonnees["taux_retard_aeroports"]
         self._taux_global = self._metadonnees["taux_retard_global"]
+        # Mêmes poids qu'à l'entraînement, sinon les distances ne correspondent plus
+        self.poids = PoidsVariables.depuis_dict(self._metadonnees.get("poids_variables", {}))
 
         # Même découpage (random_state=42) que lors de l'entraînement → mêmes voisins
         self.donnees.train_test_split(self.preparer(self.donnees.charger_donnees(self._chemin_csv)))
@@ -480,7 +345,7 @@ class ModeleVol:
     def sauvegarder(self, scores: dict, dossier: str = "modeles") -> None:
         """Sauvegarde le modèle (joblib) et les métadonnées (JSON).
 
-        Raises:
+        erreur:
             RuntimeError: si le modèle n'est pas entraîné.
         """
         if self._knn is None or self._scaler is None or self._le is None:
@@ -498,6 +363,7 @@ class ModeleVol:
             "aeroports_possibles": self.donnees.liste_aeroports,
             "taux_retard_aeroports": self._taux_aeroports,
             "taux_retard_global": self._taux_global,
+            "poids_variables": self.poids.en_dict(),
             "dataset": self._chemin_csv,
             "intervalle_dayofweek": [1, 7],
             "intervalle_time": [0, 1439],

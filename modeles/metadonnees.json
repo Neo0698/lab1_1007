@@ -626,6 +626,14 @@
     "YUM": 0.2808434143698096
   },
   "taux_retard_global": 0.4999771625901354,
+  "poids_variables": {
+    "Airline_Encoded": 3,
+    "Origin_Taux": 1.0,
+    "DayOfWeek": 0.2,
+    "Time": 1.0,
+    "Length": 0.5,
+    "Length_Carre": 0.5
+  },
   "dataset": "donnees/Airlines.csv",
   "intervalle_dayofweek": [
     1,
@@ -639,6 +647,6 @@
     0,
     655
   ],
-  "exactitude_knn": 0.6341,
+  "exactitude_knn": 0.645,
   "exactitude_reference": 0.4999
 }

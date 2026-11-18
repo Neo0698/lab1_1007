@@ -1,16 +1,8 @@
-"""
-dataset.py - Module définissant l'interface abstraite pour les datasets.
-"""
-
 from abc import ABC, abstractmethod
 from typing import Optional 
 import pandas as pd
 
 class Dataset(ABC):
-    """
-    Classe abstraite représentant un jeu de données.
-    """
-
     @abstractmethod
     def charger_donnees(self, path: str) -> pd.DataFrame:
         """Charge les données depuis un fichier."""

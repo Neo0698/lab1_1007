@@ -72,29 +72,6 @@ def graphique_taille(resultats: pd.DataFrame, chemin_sortie: str) -> str:
     fig.savefig(chemin_sortie, dpi=120)
     return chemin_sortie
 
-
-def score_selon_poids(df: pd.DataFrame, combinaisons: dict[str, PoidsVariables],
-                      k: int = 31) -> pd.DataFrame:
-    """Entraîne un kNN pour chaque combinaison de poids et compare les exactitudes.
-
-    Args:
-        df: Jeu de données (un échantillon suffit pour comparer).
-        combinaisons: Nom lisible -> poids des variables.
-        k: Nombre de voisins du kNN.
-
-    Returns:
-        DataFrame trié par exactitude décroissante (colonnes nom, poids, exactitude_knn).
-    """
-    resultats = []
-    for nom, poids in combinaisons.items():
-        modele = ModeleVol(n=k, poids=poids)
-        modele.donnees = Data(df)
-        score = modele.entrainer()["exactitude_knn"]
-        resultats.append({"nom": nom, "poids": poids.en_dict(), "exactitude_knn": score})
-        print(f"{nom:<40} {score:.4f}")
-    return pd.DataFrame(resultats).sort_values("exactitude_knn", ascending=False)
-
-
 def score_selon_k(modele: ModeleVol, valeurs_k, chemin_sortie: str) -> str:
     """Compare l'exactitude du kNN selon k, avec et sans pondération sigmoïde (PNG).
 

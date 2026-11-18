@@ -39,7 +39,7 @@ class Interface:
         saisies = (compagnie, aeroport, jour, heure, minutes, duree)
         return [variable.valider(saisie) for variable, saisie in zip(self._variables, saisies)]
 
-    def creer_graphique_voisins(self, voisins_df: pd.DataFrame, a_l_heure: float, retarde: float, reference) -> Figure:
+    def creer_graphique_voisins(self, voisins_df: pd.DataFrame, a_l_heure: float, retarde: float, heure_vol, duree_vol) -> Figure:
         """Génère le graphique des k voisins les plus proches."""
         fig = Figure(figsize=(6, 4.2))
         ax = fig.subplots()
@@ -47,8 +47,7 @@ class Interface:
             v = voisins_df[voisins_df["Delay"] == delay]
             ax.scatter(v["Time"] / 60, v["Length"], c=couleur, s=70, alpha=0.7,
                        edgecolors="black", label=f"{nom} ({len(v)})")
-        ax.scatter(reference["Time"] / 60, reference["Length"], c="#9E7BB5", s=70, alpha=0.7,
-                       edgecolors="black", label=f"{nom} ({len(v)})")
+        ax.scatter(heure_vol, duree_vol, c="#9E7BB5", s=300, edgecolors="black", label="Votre vol")
         ax.set_title(f"Les {len(voisins_df)} vols les plus proches")
         ax.set_xlabel("Heure de départ (h)")
         ax.set_ylabel("Durée du vol (min)")
@@ -78,7 +77,7 @@ class Interface:
 
         self._historique.ajouter(compagnie, aeroport, jour, heure, minutes, duree, prob[1])
         x=self._modele._preparer_vol(compagnie, aeroport, jour, heure, minutes, duree)
-        return html, self.creer_graphique_voisins(voisins, a_l_heure, retarde, x), voisins
+        return html, self.creer_graphique_voisins(voisins, a_l_heure, retarde,heure,duree), voisins
 
     def construire_interface(self) -> gr.Blocks:
         """Construit l'interface Gradio à partir des métadonnées du modèle chargé."""

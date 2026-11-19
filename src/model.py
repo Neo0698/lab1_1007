@@ -86,8 +86,8 @@ class PoidsVariables:
 
     def appliquer(self, X: np.ndarray, features: list[str]) -> np.ndarray:
         """Multiplie chaque colonne de X (déjà normalisé) par son poids."""
-        vecteur = np.array([self._poids.get(f, 1.0) for f in features])
-        return np.asarray(X) * vecteur
+        vecteur = np.array([self._poids.get(f, 1.0) for f in features]) # vectorisation des poids pour chaque feature
+        return np.asarray(X) * vecteur                # applique les poids aux colonnes correspondantes de X
 
     def en_dict(self) -> dict:
         """Poids à enregistrer dans le JSON."""
@@ -160,7 +160,7 @@ class ModeleVol:
                              "Régénérez le CSV avec : python -m src.create_dataset")
         df = df.copy().dropna()
         self._le = LabelEncoder()
-        df["Airline_Encoded"] = self._le.fit_transform(df["Airline"])
+        df["Airline_Encoded"] = self._le.fit_transform(df["Airline"]) # encode les compagnies aériennes en entiers pour les futurs traitements
         df["Length_Carre"] = df["Length"] ** 2  # permet d'apporter plus d'importance sur la duree du vol
         self.donnees.charger_airlines(sorted(df["Airline"].unique()))
         return df
@@ -187,15 +187,17 @@ class ModeleVol:
         """
         if self.donnees.data is None:
             self.donnees.charger_donnees(self._chemin_csv)
-        self.donnees.train_test_split(self.preparer(self.donnees.data))
+        self.donnees.train_test_split(self.preparer(self.donnees.data)) # divise les données en ensembles d'entraînement et de test
 
         # Taux de retard par aéroport : calculé sur l'entraînement SEULEMENT (pas de fuite du test)
         df_train = self.donnees.df_train
+
         taux = taux_retard_lisse(df_train["Origin"], df_train["Delay"])
+        
         self._taux_aeroports = {str(a): float(t) for a, t in taux.items()}
         self._taux_global = float(df_train["Delay"].mean())
         self.donnees.charger_aeroports(sorted(self._taux_aeroports))
-        self.donnees.transformer(self._ajouter_taux_aeroport)
+        self.donnees.transformer(self._ajouter_taux_aeroport) # ajoute le taux de retard par aéroport aux données tests et d'entraînement
 
         # Normalisation (apprise sur l'entraînement, appliquée au test), puis poids des variables
         features = self.donnees.features
@@ -203,17 +205,17 @@ class ModeleVol:
         self._X_train_scaled = self.poids.appliquer(
             self._scaler.fit_transform(self.donnees.X_train), features)
         self._X_test_scaled = self.poids.appliquer(
-            self._scaler.transform(self.donnees.X_test), features)
+            self._scaler.transform(self.donnees.X_test), features) # applique que le transformateur car le scaler a déjà été ajusté sur l'entraînement
 
         # Référence (classe majoritaire)
         reference = DummyClassifier(strategy="most_frequent")
-        reference.fit(self.donnees.X_train, self.donnees.y_train)
-        score_reference = reference.score(self.donnees.X_test, self.donnees.y_test)
+        reference.fit(self.donnees.X_train, self.donnees.y_train) # entraîne le classifieur Dummy sur les données d'entraînement
+        score_reference = reference.score(self.donnees.X_test, self.donnees.y_test) # score renvoie l'exactitude de la référence par rapport au test
 
         # Modèle kNN
         self._knn = KNeighborsClassifier(n_neighbors=self.nb_neighbors, metric="euclidean")
-        self._knn.fit(self._X_train_scaled, self.donnees.y_train)
-        score_knn = self._knn.score(self._X_test_scaled, self.donnees.y_test)
+        self._knn.fit(self._X_train_scaled, self.donnees.y_train) # entraîne le kNN sur les données d'entraînement
+        score_knn = self._knn.score(self._X_test_scaled, self.donnees.y_test) # score renvoie l'exactitude de knn par rapport au test
 
         print(f"Référence (classe majoritaire) : {score_reference:.3f}")
         print(f"kNN (k={self.nb_neighbors})                : {score_knn:.3f}")
@@ -292,8 +294,8 @@ class ModeleVol:
                 heure: int, minutes: int, duree: float) -> pd.DataFrame:
         """Retourne les k vols d'entraînement les plus proches, avec aéroport, retard et distance."""
         x = self._preparer_vol(airline_choisie, aeroport, jour_semaine, heure, minutes, duree)
-        distances, indices = self._knn.kneighbors(x)
-        lignes = self.donnees.df_train.iloc[indices[0]]
+        distances, indices = self._knn.kneighbors(x) 
+        lignes = self.donnees.df_train.iloc[indices[0]] # iloc permet de sélectionner les lignes par position dans le DataFrame
         vols = lignes[self.donnees.features].copy()
         vols.insert(0, "Origin", lignes["Origin"].values)
         vols["Delay"] = lignes["Delay"].values

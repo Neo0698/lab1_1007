@@ -3,7 +3,7 @@ from __future__ import annotations
 import os
 from typing import Callable
 
-import numpy as np
+
 import pandas as pd
 from matplotlib.figure import Figure
 from sklearn.model_selection import train_test_split
@@ -183,7 +183,7 @@ class Data(Dataset):
         for delay, couleur, nom in ((0, "#2e7d32", "À l'heure"), (1, "#c62828", "En retard")):
             ax_duree.hist(df.loc[df["Delay"] == delay, "Length"], bins=40, alpha=0.6,
                           color=couleur, label=nom)
-        ax_duree.set(title="Durée des vols selon le retard", xlabel="Durée du vol (min)",
+        ax_duree.set(title="Retard selon la durée du vol", xlabel="Durée du vol (min)",
                      ylabel="Nombre de vols")
         ax_duree.legend()
 

@@ -2,13 +2,13 @@ from __future__ import annotations
 
 import os
 import json
-from typing import Callable
+
 
 import joblib
 
 import numpy as np
 import pandas as pd
-from matplotlib.figure import Figure
+
 from sklearn.model_selection import train_test_split
 from sklearn.preprocessing import StandardScaler, LabelEncoder
 from sklearn.neighbors import KNeighborsClassifier
@@ -21,6 +21,7 @@ from .outils import chronometrer
 def sigmoid_weights(distances):
     
     return 1 / (1 + np.exp(distances - 1.0))
+
 
 COLONNES_CSV = {"Airline", "Origin", "DayOfWeek", "Time", "Length", "Delay"}
 FEATURES = ["Airline_Encoded", "Origin_Taux", "DayOfWeek", "Time", "Length", "Length_Carre"]

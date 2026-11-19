@@ -18,11 +18,13 @@ from .exceptions import DonneeInvalideError
 from .outils import chronometrer
 
 def sigmoid_weights(distances):
-    
+
     return 1 / (1 + np.exp(distances - 1.0))
 
 
 COLONNES_CSV = {"Airline", "Origin", "DayOfWeek", "Time", "Length", "Delay"}
+# Fichiers écrits par sauvegarder() et relus par charger()
+FICHIERS_MODELE = ("knn.joblib", "scaler.joblib", "label_encoder.joblib", "metadonnees.json")
 
 
 def taux_retard_lisse(origines: pd.Series, retards: pd.Series, poids: int = 20) -> pd.Series:
@@ -149,7 +151,19 @@ class ModeleVol:
     # Préparation
     # ---------------------------------------------------------
     def preparer(self, df: pd.DataFrame) -> pd.DataFrame:
-        """Encode la compagnie, crée Length_Carre et retourne le DataFrame prêt.
+        """Apprend l'encodage des compagnies, puis renvoie les vols prêts (voir _ajouter_colonnes).
+
+        erreur:
+            ValueError: si une colonne attendue (dont Origin) manque dans les données.
+        """
+        df = self._nettoyer(df)
+        self._le = LabelEncoder().fit(df["Airline"])
+        self.donnees.charger_airlines([str(a) for a in self._le.classes_])  # classes_ : déjà triées
+        return self._ajouter_colonnes(df)
+
+    @staticmethod
+    def _nettoyer(df: pd.DataFrame) -> pd.DataFrame:
+        """Vérifie les colonnes du CSV et retire les lignes incomplètes.
 
         erreur:
             ValueError: si une colonne attendue (dont Origin) manque dans les données.
@@ -158,11 +172,13 @@ class ModeleVol:
         if manquantes:
             raise ValueError(f"Colonnes manquantes dans les données : {sorted(manquantes)}. "
                              "Régénérez le CSV avec : python -m src.create_dataset")
-        df = df.copy().dropna()
-        self._le = LabelEncoder()
-        df["Airline_Encoded"] = self._le.fit_transform(df["Airline"])
+        return df.dropna()
+
+    def _ajouter_colonnes(self, df: pd.DataFrame) -> pd.DataFrame:
+        """Renvoie une copie de df avec Airline_Encoded (encodeur déjà appris) et Length_Carre."""
+        df = df.copy()
+        df["Airline_Encoded"] = self._le.transform(df["Airline"])
         df["Length_Carre"] = df["Length"] ** 2  # permet d'apporter plus d'importance sur la duree du vol
-        self.donnees.charger_airlines(sorted(df["Airline"].unique()))
         return df
 
     def _ajouter_taux_aeroport(self, df: pd.DataFrame) -> pd.DataFrame:
@@ -173,6 +189,10 @@ class ModeleVol:
         df = df.copy()
         df["Origin_Taux"] = df["Origin"].map(self._taux_aeroports).fillna(self._taux_global)
         return df
+
+    def _transformation_espace_knn(self, X: pd.DataFrame) -> np.ndarray:
+        """Normalise X avec le scaler appris, puis applique les poids : c'est l'espace du kNN."""
+        return self.poids.appliquer(self._scaler.transform(X), self.donnees.features)
 
     # ---------------------------------------------------------
     # Entraînement et évaluation
@@ -185,38 +205,29 @@ class ModeleVol:
             FileNotFoundError: si le CSV est introuvable.
             ValueError: si une colonne attendue manque dans le CSV.
         """
-        if self.donnees.data is None:
-            self.donnees.charger_donnees(self._chemin_csv)
-        self.donnees.train_test_split(self.preparer(self.donnees.data))
+        self.donnees.train_test_split(self.preparer(self.charger_csv()))
 
-        # Taux de retard par aéroport : calculé sur l'entraînement SEULEMENT (pas de fuite du test)
+        
         df_train = self.donnees.df_train
         taux = taux_retard_lisse(df_train["Origin"], df_train["Delay"])
         self._taux_aeroports = {str(a): float(t) for a, t in taux.items()}
         self._taux_global = float(df_train["Delay"].mean())
         self.donnees.charger_aeroports(sorted(self._taux_aeroports))
         self.donnees.transformer(self._ajouter_taux_aeroport)
-
-        # Normalisation (apprise sur l'entraînement, appliquée au test), puis poids des variables
-        features = self.donnees.features
-        self._scaler = StandardScaler()
-        self._X_train_scaled = self.poids.appliquer(
-            self._scaler.fit_transform(self.donnees.X_train), features)
-        self._X_test_scaled = self.poids.appliquer(
-            self._scaler.transform(self.donnees.X_test), features)
-
-        # Référence (classe majoritaire)
+        
+        self._scaler = StandardScaler().fit(self.donnees.X_train)
+        self._X_train_scaled = self._transformation_espace_knn(self.donnees.X_train)
+        self._X_test_scaled = self._transformation_espace_knn(self.donnees.X_test)
+        
         reference = DummyClassifier(strategy="most_frequent")
         reference.fit(self.donnees.X_train, self.donnees.y_train)
         score_reference = reference.score(self.donnees.X_test, self.donnees.y_test)
 
-        # Modèle kNN
         self._knn = KNeighborsClassifier(n_neighbors=self.nb_neighbors, metric="euclidean")
         self._knn.fit(self._X_train_scaled, self.donnees.y_train)
         score_knn = self._knn.score(self._X_test_scaled, self.donnees.y_test)
 
-        print(f"Référence (classe majoritaire) : {score_reference:.3f}")
-        print(f"kNN (k={self.nb_neighbors})                : {score_knn:.3f}")
+        
 
         return {
             "exactitude_knn": round(float(score_knn), 4),
@@ -275,7 +286,7 @@ class ModeleVol:
         }
         features = self.donnees.features
         nouveau_vol = pd.DataFrame([[valeurs[f] for f in features]], columns=features)
-        return self.poids.appliquer(self._scaler.transform(nouveau_vol), features)
+        return self._transformation_espace_knn(nouveau_vol)
 
     def predire(self, airline_choisie: str, aeroport: str, jour_semaine: int,
                 heure: int, minutes: int, duree: float) -> np.ndarray:
@@ -300,45 +311,27 @@ class ModeleVol:
         vols["Distance"] = distances[0]
         return vols
 
-    # ---------------------------------------------------------
-    # Chargement et sauvegarde
-    # ---------------------------------------------------------
-    def charger(self, dossier: str = "modeles") -> None:
-        """Charge le modèle, le scaler, le label encoder et les métadonnées sauvegardés.
-
-        Reconstruit aussi l'ensemble d'entraînement (même découpage, random_state=42)
-        pour que voisins() fonctionne sans ré-entraîner le modèle.
-
-        Args:
-            dossier: Chemin vers le dossier contenant les fichiers .joblib et .json.
+    
+    def charger_csv(self) -> pd.DataFrame:
+        """Renvoie les vols bruts du CSV du modèle, lus une seule fois.
 
         erreur:
-            FileNotFoundError: si un des fichiers du modèle ou le CSV est absent.
+            FileNotFoundError: si le CSV est introuvable.
         """
-        for nom in ("knn.joblib", "scaler.joblib", "label_encoder.joblib", "metadonnees.json"):
-            if not os.path.exists(os.path.join(dossier, nom)):
-                raise FileNotFoundError(f"Fichier de modèle manquant : {os.path.join(dossier, nom)}")
+        if self.donnees.data is None:
+            self.donnees.charger_donnees(self._chemin_csv)
+        return self.donnees.data
 
-        with open(os.path.join(dossier, "metadonnees.json"), "r", encoding="utf-8") as f:
-            self._metadonnees = json.load(f)
-        self.donnees.features = self._metadonnees["features"]
-        self._taux_aeroports = self._metadonnees["taux_retard_aeroports"]
-        self._taux_global = self._metadonnees["taux_retard_global"]
-        # Mêmes poids qu'à l'entraînement, sinon les distances ne correspondent plus
-        self.poids = PoidsVariables.depuis_dict(self._metadonnees.get("poids_variables", {}))
-
-        # Même découpage (random_state=42) que lors de l'entraînement → mêmes voisins
-        self.donnees.train_test_split(self.preparer(self.donnees.charger_donnees(self._chemin_csv)))
-        self.donnees.transformer(self._ajouter_taux_aeroport)
-
-        self._knn = joblib.load(os.path.join(dossier, "knn.joblib"))
-        self._scaler = joblib.load(os.path.join(dossier, "scaler.joblib"))
-        self._le = joblib.load(os.path.join(dossier, "label_encoder.joblib"))
-        self.donnees.charger_airlines(self._metadonnees["airlines_possibles"])
-        self.donnees.charger_aeroports(self._metadonnees["aeroports_possibles"])
+    @staticmethod
+    def _chemins_fichiers(dossier: str) -> dict[str, str]:
+        """Chemin de chaque fichier du modèle dans dossier."""
+        return {nom: os.path.join(dossier, nom) for nom in FICHIERS_MODELE}
 
     def sauvegarder(self, scores: dict, dossier: str = "modeles") -> None:
         """Sauvegarde le modèle (joblib) et les métadonnées (JSON).
+
+        Le JSON réunit deux parties : celle de Data (colonnes, compagnies, aéroports)
+        et celle du modèle (taux des aéroports, poids, scores).
 
         erreur:
             RuntimeError: si le modèle n'est pas entraîné.
@@ -347,37 +340,79 @@ class ModeleVol:
             raise RuntimeError("Le modèle doit être entraîné avant d'être sauvegardé.")
 
         os.makedirs(dossier, exist_ok=True)
-        joblib.dump(self._knn, os.path.join(dossier, "knn.joblib"))
-        joblib.dump(self._scaler, os.path.join(dossier, "scaler.joblib"))
-        joblib.dump(self._le, os.path.join(dossier, "label_encoder.joblib"))
+        chemins = self._chemins_fichiers(dossier)
+        joblib.dump(self._knn, chemins["knn.joblib"])
+        joblib.dump(self._scaler, chemins["scaler.joblib"])
+        joblib.dump(self._le, chemins["label_encoder.joblib"])
 
         metadonnees = {
-            "features": self.donnees.features,
+            **self.donnees.en_dict(),   # partie Data
             "cible": "Delay",
-            "airlines_possibles": [str(a) for a in self.donnees.liste_airlines],
-            "aeroports_possibles": self.donnees.liste_aeroports,
+            "dataset": self._chemin_csv,
             "taux_retard_aeroports": self._taux_aeroports,
             "taux_retard_global": self._taux_global,
             "poids_variables": self.poids.en_dict(),
-            "dataset": self._chemin_csv,
             "intervalle_dayofweek": [1, 7],
             "intervalle_time": [0, 1439],
             "intervalle_length": [0, 655],
             "exactitude_knn": scores["exactitude_knn"],
             "exactitude_reference": scores["exactitude_reference"],
         }
-        with open(os.path.join(dossier, "metadonnees.json"), "w", encoding="utf-8") as f:
+        with open(chemins["metadonnees.json"], "w", encoding="utf-8") as f:
             json.dump(metadonnees, f, ensure_ascii=False, indent=2)
         self._metadonnees = metadonnees
 
         print(f"--- Modèle et métadonnées sauvegardés dans '{dossier}/' ---")
+
+    def charger(self, dossier: str = "modeles") -> None:
+        """Charge le modèle sauvegardé, puis reconstruit les vols d'entraînement.
+
+        Args:
+            dossier: Dossier contenant les fichiers .joblib et .json.
+
+        erreur:
+            FileNotFoundError: si un des fichiers du modèle ou le CSV est absent.
+        """
+        chemins = self._chemins_fichiers(dossier)
+        for chemin in chemins.values():
+            if not os.path.exists(chemin):
+                raise FileNotFoundError(f"Fichier de modèle manquant : {chemin}")
+
+        # 1. Partie modèle : objets scikit-learn et valeurs apprises
+        self._knn = joblib.load(chemins["knn.joblib"])
+        self._scaler = joblib.load(chemins["scaler.joblib"])
+        self._le = joblib.load(chemins["label_encoder.joblib"])
+        with open(chemins["metadonnees.json"], encoding="utf-8") as f:
+            self._metadonnees = json.load(f)
+        self._taux_aeroports = self._metadonnees["taux_retard_aeroports"]
+        self._taux_global = self._metadonnees["taux_retard_global"]
+        # Mêmes poids qu'à l'entraînement, sinon les distances ne correspondent plus
+        self.poids = PoidsVariables.depuis_dict(self._metadonnees.get("poids_variables", {}))
+
+        # 2. Partie Data : colonnes et listes connues
+        self.donnees.restaurer(self._metadonnees)
+
+        # 3. Vols d'entraînement, nécessaires à voisins()
+        self._reconstruire_entrainement()
+
+    def _reconstruire_entrainement(self) -> None:
+        """Relit le CSV et refait le même découpage qu'à l'entraînement (graine 42).
+
+        Utilise l'encodeur et les taux déjà chargés : rien n'est réappris.
+
+        erreur:
+            FileNotFoundError: si le CSV est absent.
+        """
+        df = self._nettoyer(self.charger_csv())
+        self.donnees.train_test_split(self._ajouter_colonnes(df))
+        self.donnees.transformer(self._ajouter_taux_aeroport)
 
 
 def main() -> None:
     """Point d'entrée : explore les données, puis entraîne, évalue et sauvegarde le modèle."""
     modele = ModeleVol("donnees/Airlines.csv")
     try:
-        modele.donnees.charger_donnees("donnees/Airlines.csv")
+        modele.charger_csv()   # lu une fois, réutilisé par entrainer()
         print(modele.donnees.resume_qualite())
         chemin = modele.donnees.graphique_exploration(os.path.join("donnees", "exploration.png"))
         print(f"--- Graphique d'exploration enregistré dans '{chemin}' ---")

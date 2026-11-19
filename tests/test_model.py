@@ -277,3 +277,33 @@ def test_poids_sauvegardes_et_recharges(chemin_csv, tmp_path):
     assert recharge.poids.en_dict() == poids.en_dict()
     assert recharge.predire("DL", "LAX", 5, 18, 0, 300) == pytest.approx(
         modele.predire("DL", "LAX", 5, 18, 0, 300))
+
+
+def test_data_en_dict_et_restaurer():
+    """La partie Data des métadonnées se relit à l'identique : colonnes, compagnies, aéroports."""
+    from src.Data import Data
+    source = Data()
+    source.charger_airlines(["AA", "DL"])
+    source.charger_aeroports(["JFK", "LAX"])
+    meta = source.en_dict()
+
+    copie = Data()
+    copie.restaurer(meta)
+    assert copie.features == source.features
+    assert copie.liste_airlines == ["AA", "DL"]
+    assert copie.liste_aeroports == ["JFK", "LAX"]
+
+
+def test_charger_retrouve_les_memes_voisins(chemin_csv, tmp_path):
+    """Après charger(), l'encodeur n'est pas réappris et les vols d'entraînement sont les mêmes :
+    les voisins (et leurs distances) sont identiques à ceux du modèle entraîné."""
+    modele = ModeleVol(chemin_csv)
+    dossier = str(tmp_path / "modeles")
+    modele.sauvegarder(modele.entrainer(), dossier=dossier)
+
+    recharge = ModeleVol(chemin_csv)
+    recharge.charger(dossier)
+    avant = modele.voisins("UA", "ORD", 2, 9, 15, 250)
+    apres = recharge.voisins("UA", "ORD", 2, 9, 15, 250)
+    pd.testing.assert_frame_equal(avant, apres)
+    assert recharge.donnees.liste_airlines == modele.donnees.liste_airlines

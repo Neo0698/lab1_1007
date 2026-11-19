@@ -19,12 +19,11 @@ class Data(Dataset):
 
     Args:
         data: DataFrame déjà chargé (facultatif).
-        airlines: Liste des compagnies connues (facultatif).
     """
 
-    def __init__(self, data: pd.DataFrame | None = None, airlines: list[str] | None = None) -> None:
+    def __init__(self, data: pd.DataFrame | None = None) -> None:
         self._data = data
-        self._liste_airlines: list[str] = list(airlines) if airlines else []
+        self._liste_airlines: list[str] = []
         self._liste_aeroports: list[str] = []
         self._features = list(FEATURES)
         self._df_train: pd.DataFrame | None = None
@@ -193,16 +192,3 @@ class Data(Dataset):
             os.makedirs(dossier, exist_ok=True)
         fig.savefig(chemin_sortie, dpi=120)
         return chemin_sortie
-
-    # --- Méthodes spéciales --------------------------------------------------
-    def __add__(self, autre: "Data") -> "Data":
-        """Renvoie un nouveau Data qui met bout à bout les lignes des deux jeux."""
-        if not isinstance(autre, Data):
-            return NotImplemented
-        lignes = pd.concat([self._data, autre.data], ignore_index=True)
-        compagnies = sorted(set(self._liste_airlines) | set(autre.liste_airlines))
-        return Data(lignes, compagnies)
-
-    def __repr__(self) -> str:
-        n = 0 if self._data is None else len(self._data)
-        return f"Data({n} lignes, {len(self._liste_airlines)} compagnies)"

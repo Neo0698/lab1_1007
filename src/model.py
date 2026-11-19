@@ -9,7 +9,6 @@ import joblib
 import numpy as np
 import pandas as pd
 
-from sklearn.model_selection import train_test_split
 from sklearn.preprocessing import StandardScaler, LabelEncoder
 from sklearn.neighbors import KNeighborsClassifier
 from sklearn.dummy import DummyClassifier
@@ -24,7 +23,6 @@ def sigmoid_weights(distances):
 
 
 COLONNES_CSV = {"Airline", "Origin", "DayOfWeek", "Time", "Length", "Delay"}
-FEATURES = ["Airline_Encoded", "Origin_Taux", "DayOfWeek", "Time", "Length", "Length_Carre"]
 
 
 def taux_retard_lisse(origines: pd.Series, retards: pd.Series, poids: int = 20) -> pd.Series:
@@ -94,10 +92,6 @@ class PoidsVariables:
     def en_dict(self) -> dict:
         """Poids à enregistrer dans le JSON."""
         return dict(self._poids)
-
-    def __repr__(self) -> str:
-        return f"PoidsVariables({self._poids})"
-
 
 def poids_retenus() -> PoidsVariables:
     """Poids choisis avec choix_modele.score_selon_poids (jeu complet, k=31).

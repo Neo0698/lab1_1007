@@ -21,4 +21,4 @@ jobs:
 
       - name: Lancer les tests
         run: |
-          python -m pytest tests/test_model.py
+          python -m pytest tests

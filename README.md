@@ -13,13 +13,14 @@ modeles/
 src/
 	create_dataset.py     # extraction du CSV depuis Hugging Face
 	dataset.py            # classe abstraite Dataset
-	model.py              # Data (données) et ModeleVol (préparation, entraînement, prédiction, sauvegarde)
+	Data.py               # chargement, découpage et exploration des données
+	model.py              # ModeleVol (préparation, entraînement, prédiction, sauvegarde)
 	variables.py          # Variable → VariableNumerique / VariableCategorielle 
 	exceptions.py         # DonneeInvalideError
 	historique.py         # historique des prédictions (CSV)
 	outils.py             # décorateur @chronometrer
 	interface.py          # application Gradio
-	choix_modele.py       # recherche du meilleur k (score_vs_k.png)
+	choix_modele.py       # comparaison selon la taille des données et outil de comparaison de k
 
 tests/
 	test_model.py
@@ -51,3 +52,5 @@ pip install -r requirements.txt
 python -m src.create_dataset *pour creer le csv en fonction du modèle huggingface*
 python -m src.model *entraine le modèle*
 python -m src.main *lance le serveur de l'interface graphique puis acceder a l'interface via le lien: http://127.0.0.1:7860 *
+
+Le décorateur `chronometrer` mesure le temps d'entraînement et d'évaluation du modèle.

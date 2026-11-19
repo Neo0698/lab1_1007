@@ -39,7 +39,7 @@ class Interface:
         saisies = (compagnie, aeroport, jour, heure, minutes, duree)
         return [variable.valider(saisie) for variable, saisie in zip(self._variables, saisies)]
 
-    def creer_graphique_voisins(self, voisins_df: pd.DataFrame, a_l_heure: float, retarde: float, heure_vol, duree_vol) -> Figure:
+    def creer_graphique_voisins(self, voisins_df: pd.DataFrame, heure_vol, duree_vol) -> Figure:
         """Génère le graphique des k voisins les plus proches."""
         fig = Figure(figsize=(6, 4.2))
         ax = fig.subplots()
@@ -76,8 +76,7 @@ class Interface:
                 f"À l'heure : {a_l_heure}%<br>Retardé : {retarde}%</div>")
 
         self._historique.ajouter(compagnie, aeroport, jour, heure, minutes, duree, prob[1])
-        x=self._modele._preparer_vol(compagnie, aeroport, jour, heure, minutes, duree)
-        return html, self.creer_graphique_voisins(voisins, a_l_heure, retarde,heure,duree), voisins
+        return html, self.creer_graphique_voisins(voisins, heure, duree), voisins
 
     def construire_interface(self) -> gr.Blocks:
         """Construit l'interface Gradio à partir des métadonnées du modèle chargé."""

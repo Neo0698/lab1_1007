@@ -33,6 +33,3 @@ class Historique:
         if not os.path.exists(self._chemin):
             return pd.DataFrame(columns=self.COLONNES)
         return pd.read_csv(self._chemin)
-
-    def __len__(self) -> int:
-        return len(self.lire())

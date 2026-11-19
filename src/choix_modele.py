@@ -11,11 +11,10 @@ import time
 import pandas as pd
 from matplotlib.figure import Figure
 
-from .model import Data, ModeleVol, PoidsVariables
+from .model import Data, ModeleVol
 
 CHEMIN_CSV = os.path.join("donnees", "Airlines.csv")
 TAILLES = [5_000, 10_000, 25_000, 50_000, 100_000, 250_000, 500_000, 1_000_000]
-VALEURS_K = range(20, 150, 5)
 
 
 def score_selon_taille(df: pd.DataFrame, tailles: list[int], k: int = 31) -> pd.DataFrame:

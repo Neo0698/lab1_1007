@@ -17,16 +17,6 @@ class Variable(ABC):
         self._nom = nom
         self._libelle = libelle
 
-    @property
-    def nom(self) -> str:
-        """Nom de la variable."""
-        return self._nom
-
-    @property
-    def libelle(self) -> str:
-        """Texte affiché à l'utilisateur."""
-        return self._libelle
-
     def _verifier_non_vide(self, valeur) -> None:
         """Lève DonneeInvalideError si la valeur est vide (None ou chaîne vide)."""
         if valeur is None or (isinstance(valeur, str) and valeur.strip() == ""):
@@ -68,10 +58,6 @@ class VariableNumerique(Variable):
                 f"« {self._libelle} » doit être entre {self._minimum} et {self._maximum}.")
         return nombre
 
-    def __str__(self) -> str:
-        return f"{self._libelle} ({self._minimum} à {self._maximum})"
-
-
 class VariableCategorielle(Variable):
     """Variable dont la valeur doit appartenir à une liste fixe."""
 
@@ -95,10 +81,6 @@ class VariableCategorielle(Variable):
             raise DonneeInvalideError(
                 f"« {valeur} » n'est pas une valeur possible de « {self._libelle} ».")
         return valeur
-
-    def __str__(self) -> str:
-        return f"{self._libelle} ({len(self._valeurs)} choix)"
-
 
 def variables_depuis_metadonnees(meta: dict) -> list[Variable]:
     """Construit les variables d'entrée, dans l'ordre du formulaire, à partir du JSON.

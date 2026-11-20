@@ -121,6 +121,25 @@ class Data(Dataset):
         self._df_train = fonction(self._df_train)
         self._df_test = fonction(self._df_test)
 
+    # --- Sauvegarde et chargement ------------------------------------------
+    def en_dict(self) -> dict:
+        """Ce que Data doit enregistrer dans les métadonnées : colonnes et valeurs connues."""
+        return {
+            "features": list(self._features),
+            "airlines_possibles": [str(a) for a in self._liste_airlines],
+            "aeroports_possibles": [str(a) for a in self._liste_aeroports],
+        }
+
+    def restaurer(self, metadonnees: dict) -> None:
+        """Remet les colonnes et les listes connues à partir des métadonnées (sans lire le CSV).
+
+        erreur:
+            KeyError: si une clé attendue manque dans les métadonnées.
+        """
+        self.features = metadonnees["features"]
+        self.charger_airlines(metadonnees["airlines_possibles"])
+        self.charger_aeroports(metadonnees["aeroports_possibles"])
+
     
     def resume_qualite(self) -> pd.DataFrame:
         """Résume la qualité des données, une ligne par colonne.

@@ -7,11 +7,13 @@ from __future__ import annotations
 
 import os
 import time
+from collections.abc import Iterable
 
 import pandas as pd
 from matplotlib.figure import Figure
 
-from .model import Data, ModeleVol
+from .Data import Data
+from .model import ModeleVol
 
 CHEMIN_CSV = os.path.join("donnees", "Airlines.csv")
 TAILLES = [5_000, 10_000, 25_000, 50_000, 100_000, 250_000, 500_000, 1_000_000]
@@ -45,7 +47,15 @@ def score_selon_taille(df: pd.DataFrame, tailles: list[int], k: int = 31) -> pd.
 
 
 def graphique_taille(resultats: pd.DataFrame, chemin_sortie: str) -> str:
-    """Enregistre le graphique exactitude et temps d'entraînement selon la taille (PNG)."""
+    """Enregistre le graphique exactitude et temps d'entraînement selon la taille (PNG).
+
+    Args:
+        resultats: DataFrame retourné par score_selon_taille.
+        chemin_sortie: Chemin du fichier PNG de destination.
+
+    Returns:
+        Chemin du fichier enregistré.
+    """
     fig = Figure(figsize=(12, 5))
     ax_score, ax_temps = fig.subplots(1, 2)
 
@@ -71,10 +81,20 @@ def graphique_taille(resultats: pd.DataFrame, chemin_sortie: str) -> str:
     fig.savefig(chemin_sortie, dpi=120)
     return chemin_sortie
 
-def score_selon_k(modele: ModeleVol, valeurs_k, chemin_sortie: str) -> str:
+
+def score_selon_k(modele: ModeleVol, valeurs_k: Iterable[int], chemin_sortie: str) -> str:
     """Compare l'exactitude du kNN selon k, avec et sans pondération sigmoïde (PNG).
 
-    À appeler après modele.entrainer(). Long sur le jeu complet.
+    Args:
+        modele: Instance de ModeleVol déjà entraînée.
+        valeurs_k: Collection de valeurs de k à tester.
+        chemin_sortie: Chemin du fichier PNG de destination.
+
+    Returns:
+        Chemin du fichier enregistré.
+
+    Raises:
+        RuntimeError: Si le modèle n'a pas encore été entraîné.
     """
     sans_poids = [modele.test_knn(n=k, weight=False) for k in valeurs_k]
     avec_poids = [modele.test_knn(n=k, weight=True) for k in valeurs_k]
@@ -90,6 +110,7 @@ def score_selon_k(modele: ModeleVol, valeurs_k, chemin_sortie: str) -> str:
     ax.grid(True, alpha=0.3)
     ax.legend()
     fig.tight_layout()
+    os.makedirs(os.path.dirname(chemin_sortie) or ".", exist_ok=True)
     fig.savefig(chemin_sortie, dpi=120)
     return chemin_sortie
 

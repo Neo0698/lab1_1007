@@ -1,56 +1,66 @@
-# LAB2 INF1007 - Prédiction de retards de vol
-**nom** Hassan Ali Mohamed, Raphael Scott
+# Projet 2 INF1007 - Prédiction de retards de vol
 
+**Noms :** Hassan Ali Mohamed, Raphael Scott
 
-## Prédiction du retard d'un vol en utilisant un KNN
+## Description
 
-### Structure du code
-```
-donnees/
-	Airlines.csv          # jeu de données
-	exploration.png       # graphique d'exploration
-modeles/
-src/
-	create_dataset.py     # extraction du CSV depuis Hugging Face
-	dataset.py            # classe abstraite Dataset
-	Data.py               # chargement, découpage et exploration des données
-	model.py              # ModeleVol (préparation, entraînement, prédiction, sauvegarde)
-	variables.py          # Variable → VariableNumerique / VariableCategorielle 
-	exceptions.py         # DonneeInvalideError
-	historique.py         # historique des prédictions (CSV)
-	outils.py             # décorateur @chronometrer
-	interface.py          # application Gradio
-	choix_modele.py       # comparaison selon la taille des données et outil de comparaison de k
+Application locale (Gradio) qui estime la probabilité qu'un vol arrive en retard (15 minutes ou plus) selon la compagnie aérienne, l'aéroport de départ, le jour de la semaine, l'heure de départ et la durée prévue.
 
-tests/
-	test_model.py
-```
+La prédiction utilise un modèle des *k* plus proches voisins (`k = 31`). L'interface affiche les probabilités, un graphique des 31 vols passés les plus proches avec leur détail, et garde un historique des prédictions en CSV.
 
-### Description
-L'application estime si l'avion via arriver en retard( on estime qu'un vol est en retard ) selon la compagnie aérienne, le jour de la semaine, l'heure de départ prévue et la durée prévue du vol. Un modèle des k plus proches voisins (k-NN) fait la prédiction, et l'interface (Gradio) affiche les probabilités ainsi que les vols passés les plus proches du vol saisi.
-L’application retourne :
--La probabilité que le vol soit a l'heure ou en retard
--un graphe représentant les exemples de vol similaire à l'heure et en retard
--une liste de ces vols avec la distance
+## Jeu de données
 
-### Le jeu de données
-Le jeu de données provient de Hugging Face : Donny-Guo/airline-delay. Nous l’avons préféré à celui de Kaggle, car il contient un peu plus de compagnies aériennes.
+Source : [`Donny-Guo/airline-delay`](https://huggingface.co/datasets/Donny-Guo/airline-delay) sur Hugging Face (données publiques du *Bureau of Transportation Statistics* américain, libres pour un usage éducatif). On l'a choisi plutôt que celui de Kaggle car il contient plus de compagnies aériennes.
 
-Le programme create_dataset.py en extrait le nombre de vols souhaité pour entraîner le modèle. Il parcourt les MAX_LIGNES_LUES premières lignes du jeu Hugging Face (5 millions) afin de récupérer le plus de compagnies possible. Il garde ensuite autant de vols en retard que de vols à l’heure (50 % / 50 %), pour que l’échantillon soit équilibré.
+Le script create_dataset.py parcourt les 5 premiers millions de lignes en flux, retire les vols annulés, déroutés ou incomplets, et extrait un échantillon équilibré (50 % à l'heure / 50 % en retard) réparti entre les compagnies.
 
-### test effectué
-En testant de multiples algorithme d'IA nous avons determiné qu'un modèle KNN avec k=31 etait une bonne combinaison pour trouver des résultats correcte. Le modèle commence a comprendre des patterns tel qu'un vol court courrier avait plus tendance à être en retard en fin qu'en debut de journée.
+## Installation et lancement
 
-
-### Analyse des résultats
-Le kNN obtient 63,4 % d’exactitude contre 50,0 % pour la référence (classe majoritaire), soit 13,4 points de mieux. Le modèle a donc appris quelque chose. Il se trompe pourtant encore sur plus d’un vol sur trois.
-
-L’heure de départ et la compagnie sont les variables les plus utiles (de 22 % à 60 % de retards selon l’heure, de 8 % à 74 % selon la compagnie). Le jour de la semaine influence peu, et la durée du vol presque pas. Il manque les causes principales des retards : la météo, le trafic, les retards en cascade, ne pouvant pas être utilisé car non fournit dans les datasets en ligne.
-
-### Lancement du programme
+```bash
 pip install -r requirements.txt
-python -m src.create_dataset *pour creer le csv en fonction du modèle huggingface*
-python -m src.model *entraine le modèle*
-python -m src.main *lance le serveur de l'interface graphique puis acceder a l'interface via le lien: http://127.0.0.1:7860 *
+python -m src.create_dataset   # optionnel : régénère donnees/Airlines.csv
+python -m src.model            # optionnel : entraîne le modèle et crée exploration.png
+python -m src.main             # lance l'interface sur http://127.0.0.1:7860
+```
 
-Le décorateur `chronometrer` mesure le temps d'entraînement et d'évaluation du modèle.
+Comme `modeles/knn.joblib` est trop lourd pour GitHub, `python -m src.main` entraîne et sauvegarde le modèle automatiquement au premier lancement s'il n'est pas présent.
+
+## Structure du code
+
+```text
+donnees/              # Airlines.csv et graphiques générés
+modeles/              # modèle sauvegardé (.joblib) et metadonnees.json
+src/
+  main.py             # point d'entrée de l'application
+  create_dataset.py   # extraction du CSV depuis Hugging Face
+  dataset.py          # classe abstraite Dataset
+  Data.py             # chargement, découpage 80/20 et exploration
+  model.py            # ModeleVol (préparation, entraînement, prédiction)
+  variables.py        # validation des saisies (numériques et catégorielles)
+  interface.py        # application Gradio
+  historique.py       # historique des prédictions (CSV)
+  exceptions.py       # DonneeInvalideError
+  outils.py           # décorateur @chronometrer
+  choix_modele.py     # comparaison selon k et la taille des données
+tests/                # tests unitaires pytest
+```
+
+Le décorateur `@chronometrer` (dans src/outils.py) sert à mesurer le temps d'entraînement du modèle.
+
+## Résultats et limites
+
+Sur le jeu de test (80/20, `random_state=42`), le k-NN obtient **64,5 % d'exactitude** (avec pondération des variables), contre **50,0 %** pour la référence (`DummyClassifier`).
+
+L'heure de départ et la compagnie jouent beaucoup (les retards s'accumulent en fin de journée), alors que le jour et la durée influencent peu le résultat. Le modèle se trompe quand même environ une fois sur trois : il manque les causes principales des retards dans les données (météo, trafic aérien, retard de l'avion précédent), ce qui limite le projet.
+
+## Tests et documentation
+
+- Tests : pytest tests
+- Couverture (coverage) : **58 %** sur "src/" ( coverage run --source=src -m pytest tests && coverage report). 
+
+Ce taux s'explique surtout par le fait que les tests couvrent plutôt la logique du modèle et la validation des données (model.py, Data.py, variables.py), alors que les scripts d'expérimentation (create_dataset.py, choix_modele.py), le point d'entrée (main.py) et la construction visuelle Gradio ne sont pas testés en unitaire.
+
+Documentation consultée :
+- pandas : https://pandas.pydata.org/docs/user_guide/10min.html
+- scikit-learn : https://scikit-learn.org/stable/modules/neighbors.html
+- Gradio : https://www.gradio.app/docs/gradio/blocks

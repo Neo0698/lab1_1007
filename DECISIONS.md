@@ -1,25 +1,19 @@
-### choix du dataset
+# Fiche de décisions
 
-Nous avons décider de prendre le dataset sur huggingface suivant: https://huggingface.co/datasets/Donny-Guo/airline-delay comparé au dataset https://www.kaggle.com/datasets/hrishitpatil/flight-data-2024 car il contient un plus grand nombre de compagnie aerienne, nous avons du ensuite créer un programme python pour lire est extraire les 5 crithères que nous souhaitons pour entrainer le modèle, mais aussi extraire dans les mêmes proportions le nombres de vol en retard et a l'heure, le programme s'occupe d'extraire 50 000 de ces lignes parmis les 60 millions disponible dans le dataset de huggingface. 
+Projet 2 INF1007, prédiction de retards de vol (Hassan Ali Mohamed, Raphael Scott).
 
-### Justification du choix du modèle k-NN (k=31)
-Nous avons essayé de multiples modèles, les deux meilleurs était le KNN et la forêt aleatoire, en plus d'être legerement plus lent la foret aleatoire été aussi legerement moins exacte.
-
-### Choix des testes
-- 1er test, lancer le modèle sur un fichier qui n'existe pas pour vérifier si une erreur est bien généré par model.py 
-- 2ième test, lancer le modèle cette fois ci avec le bon chemin d'acces pour tester s'il est capable d'importer ce fichier sans erreur
-- 3ième test, verification que l'ajout d'une ligne vide n'empeche pas l'entrainement du modèle
-- 4ième test, verification qu'à la suite de modele.preparer, que  Length_Carre a été calculé correctement, que le nom des compagnie on été transformé correctement en vecteurs pour qu'ils puissent être interprété par le KNN., liste airlines contiennent bien l'ensemble des compagnies présente dans le dataset
-- 5ème test, vérifie si après l'entrainement le dataset chargé ne change pas, manque pas une colonne ou ajout d'une nouvelle colonne
-- 6ème test, vérification que la fonction retourne bien deux valeurs exactitude_knn et exactitude_reference
-- 7ème test, verification que le modèle knn fasse mieux que le modèle de référence.
-- 8ème test, verification qu'on ne puisse pas prédire sur un modèle non entrainé
-- 9ème test, qu'on ne puisse pas prédire sur une compagnie inconnue
-- 10 ème test, test pour les valeurs: 0 et 8 si la prediction renvoi bien une erreur
-- 11ième test, test pour les valeurs (heure, minutes) suivante (24, 0), (10, 60), (-1, 30) qu'une erreur est bien produite
-- 12ième test, test qu'une duree de vol non possible renvoi bien une erreur, testé avec les valeur temps nulle et un temps négatif
-- 13ième test, test si la fonction prédire renvoi bien la probabilité que le vol soit a l'heure et que le vol soit en retard et que les deux font bien 100%
-- 14ième test, test si un vol long est plus en retard (car hypothèse créé dans le dataset de test avec 1 if length >300)
-- 15 ième test, verifie que les cas limites renvoi bien les deux prédictions
-- 16ième test, verifie qu'un modele non entrainné ne peut pas être entrainné
-- 17ième test, verifie qu'un modèle entrainné peut être sauvegardé et que cette action est réalisé correctement en sauvegardant toutes les données nécessaires
+| Choix | Options envisagées | Choix retenu et justification | Validé par l'auxiliaire (date) |
+|---|---|---|---|
+| **Domaine** | Transport, sport, immobilier | **Transport aérien : un vol sera-t-il en retard ?** Le problème est concret pour un voyageur. Les variables (compagnie, aéroport, jour, heure, durée) se saisissent facilement dans une interface, et le domaine n'est pas sensible : aucun avertissement médical ou financier n'est requis. |  |
+| **Jeu de données** | Kaggle `flight-data-2024` ; Hugging Face `Donny-Guo/airline-delay` | **Hugging Face `Donny-Guo/airline-delay`** (données publiques du Bureau of Transportation Statistics, libres pour un usage éducatif). Il contient plus de compagnies (19 retenues) que celui de Kaggle. Comme il fait des dizaines de millions de lignes, `create_dataset.py` le lit en flux, retire les vols annulés, déroutés ou incomplets et extrait **1.9 M** réparties entre les compagnies. dépassant la taille maximal de la consigne de 50 000 lignes  |  6 novembre  |
+| **Équilibrage des classes** | Garder la proportion réelle (environ 20 % de retards) ; rééquilibrer | **Échantillon 50 % à l'heure / 50 % en retard.** Avec la proportion réelle, un modèle qui répond toujours « à l'heure » aurait environ 80 % d'exactitude sans rien apprendre. L'équilibrage rend l'exactitude interprétable. Limite : les probabilités affichées ne correspondent pas à la fréquence réelle des retards. | |**Modèle** | k plus proches voisins, forêt aléatoire, réseau récurrent (RNN) | **k-NN avec k = 31 : 64,5 %** d'exactitude contre 50,0 % pour la référence. La forêt aléatoire était un peu moins exacte et plus lente. Le RNN a été abandonné : l'apprentissage profond est exclu par l'énoncé. Le k-NN permet aussi de montrer à l'utilisateur les vols passés qui justifient la prédiction. | 
+| **Valeur de k** | k de 1 à environ 50 (`choix_modele.py`, graphique `score_vs_k.png`) | **k = 31.** Le score se stabilise autour de cette valeur. Un k impair évite les égalités dans le vote, et un petit k donnait des prédictions instables. |  |
+| **Encodage de l'aéroport** | One-hot (environ 300 colonnes) ; `LabelEncoder` ; taux de retard de l'aéroport | **`Origin_Taux` : taux de retard lissé de l'aéroport**, soit (retards + 20 × taux global) / (vols + 20). Une seule colonne, qui a un sens pour la distance. Un petit aéroport n'a pas un taux extrême, et un aéroport inconnu reçoit le taux global. | |
+| **Poids des variables** | Toutes les variables à poids 1 ; poids ajustés | **Compagnie ×3, aéroport ×1, heure ×1, durée ×0,5, jour ×0,2** (`PoidsVariables`, sauvegardés dans le JSON). Après normalisation, un poids k multiplie l'effet d'une variable dans la distance par k². L'heure et la compagnie influencent le plus le retard (graphique d'exploration), le jour presque pas. ||
+| **Pondération du vote** | Vote uniforme ; poids 1/distance ; poids sigmoïde | **Vote uniforme.** Mesuré : la sigmoïde donne exactement le même score (64,5 %), car elle est presque plate sur nos distances. 1/distance fait moins bien (61,3 %). | |
+| **Durée du vol** | Retirer la durée ; `Length` seule ; `Length` + `Length²` | **`Length` + `Length_Carre` (poids 0,5).** Retirer la durée fait baisser le score (63,7 %). `Length` seule avec un poids de 1 donne un score équivalent (64,5 %) : `Length_Carre` pourrait être retiré. | |
+| **Technologie d'interface** | Tkinter, Streamlit, Gradio | **Gradio.** Les composants sont prêts (listes déroulantes, champs numériques, `gr.Plot`, `gr.Dataframe`), le graphique Matplotlib s'intègre directement et l'application tourne en local dans le navigateur. Il y a moins de code d'interface, donc la logique reste séparée et testable. | 6 novembre |
+| **Graphique de l'interface** | Matrice de confusion ; importance des variables ; voisins | **Les 31 vols voisins** (à l'heure ou en retard) autour du vol saisi, avec leur tableau détaillé. L'utilisateur voit *pourquoi* le modèle répond ce qu'il répond. | |
+| **Historique** | JSON ; CSV | **CSV (`historique/predictions.csv`)**, consultable dans l'interface. Une ligne par prédiction, ajoutée avec `with open(..., "a")`, et lisible directement avec pandas. | |
+| **Modèle trop lourd pour GitHub** | Git LFS ; ré-entraîner au premier lancement | **Ré-entraînement automatique** si `knn.joblib` (174 Mo) est absent. Les autres lancements chargent le modèle sauvegardé sans ré-entraîner. ||
+| **Outil du chapitre 7** | Décorateur, générateur, lambda | **Décorateur `@chronometrer`** sur `ModeleVol.entrainer`, qui affiche la durée de l'entraînement sans modifier le code de la fonction. Des `lambda` servent aussi de clé de tri. | |

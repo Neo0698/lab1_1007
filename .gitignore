@@ -13,3 +13,4 @@ historique/
 .idea/
 .coverage
 .DS_Store
+.ruff_cache/

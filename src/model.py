@@ -105,7 +105,7 @@ class PoidsVariables:
         return dict(self._poids)
 
 def poids_retenus() -> PoidsVariables:
-    """Poids choisis avec choix_modele.score_selon_poids (jeu complet, k=31).
+    """Renvoie les poids par défaut des variables
 
     Le jour de la semaine influence très peu le retard : on réduit fortement son poids (0,2).
     La compagnie compte 3 fois plus et la durée 2 fois moins.

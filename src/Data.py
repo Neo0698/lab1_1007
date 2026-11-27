@@ -1,3 +1,5 @@
+"""Jeu de données de vols : chargement du CSV, découpage entraînement/test et exploration."""
+
 from __future__ import annotations
 
 import os
@@ -22,6 +24,7 @@ class Data(Dataset):
     """
 
     def __init__(self, data: pd.DataFrame | None = None) -> None:
+        """Crée un jeu de données vide (ou à partir de data), pas encore découpé."""
         self._data = data
         self._liste_airlines: list[str] = []
         self._liste_aeroports: list[str] = []
@@ -52,6 +55,7 @@ class Data(Dataset):
 
     @features.setter
     def features(self, colonnes: list[str]) -> None:
+        """Remplace les colonnes utilisées comme caractéristiques (copie de la liste)."""
         self._features = list(colonnes)
 
     def _verifier_decoupage(self) -> None:

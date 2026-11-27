@@ -1,5 +1,7 @@
 """Interface Gradio : prédiction de retard de vol (k-NN)."""
 
+from typing import Optional, Union
+
 import gradio as gr
 from matplotlib.figure import Figure
 import pandas as pd
@@ -26,11 +28,18 @@ class Interface:
     """Application Gradio : contient le modèle, l'historique et les variables d'entrée."""
 
     def __init__(self, modele: ModeleVol, historique: Historique) -> None:
+        """Garde le modèle et l'historique, et construit les variables à partir des métadonnées.
+
+        erreur:
+            KeyError: si une clé attendue manque dans les métadonnées du modèle.
+        """
         self._modele = modele
         self._historique = historique
         self._variables = variables_depuis_metadonnees(modele.metadonnees)
 
-    def valider(self, compagnie, aeroport, jour, heure, minutes, duree) -> list:
+    def valider(self, compagnie: Optional[str], aeroport: Optional[str], jour: Optional[int],
+                heure: Optional[float], minutes: Optional[float],
+                duree: Optional[float]) -> list[Union[str, float]]:
         """Valide chaque saisie avec sa variable et renvoie les valeurs converties.
 
         Raises:
@@ -39,7 +48,8 @@ class Interface:
         saisies = (compagnie, aeroport, jour, heure, minutes, duree)
         return [variable.valider(saisie) for variable, saisie in zip(self._variables, saisies)]
 
-    def creer_graphique_voisins(self, voisins_df: pd.DataFrame, heure_vol, duree_vol) -> Figure:
+    def creer_graphique_voisins(self, voisins_df: pd.DataFrame, heure_vol: float,
+                                duree_vol: float) -> Figure:
         """Génère le graphique des k voisins les plus proches."""
         fig = Figure(figsize=(6, 4.2))
         ax = fig.subplots()
@@ -55,7 +65,9 @@ class Interface:
         fig.tight_layout()
         return fig
 
-    def predire(self, compagnie, aeroport, jour, heure, minutes, duree):
+    def predire(self, compagnie: Optional[str], aeroport: Optional[str], jour: Optional[int],
+                heure: Optional[float], minutes: Optional[float], duree: Optional[float]
+                ) -> tuple[str, Optional[Figure], Optional[pd.DataFrame]]:
         """Callback du bouton : valide, prédit, enregistre dans l'historique et affiche.
 
         Returns:

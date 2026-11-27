@@ -1,3 +1,5 @@
+"""Modèle k-NN de prédiction de retard de vol : préparation, entraînement, prédiction, sauvegarde."""
+
 from __future__ import annotations
 
 import os
@@ -17,8 +19,14 @@ from .Data import Data
 from .exceptions import DonneeInvalideError
 from .outils import chronometrer
 
-def sigmoid_weights(distances):
-
+def sigmoid_weights(distances: np.ndarray) -> np.ndarray:
+    """
+    Applique la fonction mathématique sigmoid
+    prend en arugment:
+        un tableau NumPy de distances correspondant à une distance
+    et retourne un tableau NumPy de distances correspondant à l'image de la fonction sigmoid
+    erreur: ne lève aucune erreur.
+    """
     return 1 / (1 + np.exp(distances - 1.0))
 
 
@@ -68,6 +76,7 @@ class PoidsVariables:
 
     def __init__(self, k_duree: float = 1.0, k_aeroport: float = 1.0, k_jour: float = 1.0,
                  k_heure: float = 1.0, k_compagnie: float = 1.0) -> None:
+        """Associe chaque poids à sa colonne (voir la docstring de la classe)."""
         if min(k_duree, k_aeroport, k_jour, k_heure, k_compagnie) < 0:
             raise ValueError("Les poids doivent être positifs ou nuls.")
         self._poids = {
@@ -119,6 +128,7 @@ class ModeleVol:
 
     def __init__(self, chemin_csv: str = "donnees/Airlines.csv", n: int = 31,
                  poids: PoidsVariables | None = None) -> None:
+        """Crée un modèle vide : il faut appeler entrainer() ou charger() avant de prédire."""
         self._chemin_csv = chemin_csv
         self.nb_neighbors = n
         self.poids = poids if poids is not None else poids_retenus()
@@ -134,6 +144,13 @@ class ModeleVol:
 
     @property
     def _liste_airlines(self) -> list[str]:
+        """
+        sert à recupérer la liste des compagnies connus du modèle
+
+        retourne:
+            La liste des codes de compagnies, vide si le modèle
+            n'a été ni entraîné ni chargé.
+        """
         return self.donnees.liste_airlines
 
     @property
@@ -240,21 +257,29 @@ class ModeleVol:
         }
 
     def test_knn(self, n: int = 5, metric: str = "euclidean", weight: bool = False) -> float:
-        """Entraîne un kNN avec d'autres réglages et renvoie son exactitude sur le test.
+        """Entraîne un kNN temporaire avec d'autres réglages et renvoie son exactitude sur le test.
 
-        À appeler après entrainer() (utilise les mêmes données normalisées).
+        À appeler après entrainer() (utilise les mêmes données normalisées). Le modèle
+        entraîné (self._knn) n'est pas modifié : on peut le sauvegarder ensuite.
+
+        Args:
+            n: Nombre de voisins.
+            metric: Distance utilisée par le kNN.
+            weight: True pour pondérer le vote par sigmoid_weights, False pour un vote uniforme.
+
+        retourne:
+            L'exactitude sur l'ensemble de test, entre 0 et 1.
 
         erreur:
             RuntimeError: si entrainer() n'a pas été appelé.
         """
         if self._X_train_scaled is None:
             raise RuntimeError("Appeler entrainer() avant test_knn().")
-        if weight:
-            self._knn = KNeighborsClassifier(n_neighbors=n, metric=metric, weights=sigmoid_weights)
-        else:
-            self._knn = KNeighborsClassifier(n_neighbors=n, metric=metric)
-        self._knn.fit(self._X_train_scaled, self.donnees.y_train)
-        return float(self._knn.score(self._X_test_scaled, self.donnees.y_test))
+        # kNN temporaire : le modèle entraîné (self._knn, k = 31) n'est pas modifié
+        poids_vote = sigmoid_weights if weight else "uniform"
+        knn = KNeighborsClassifier(n_neighbors=n, metric=metric, weights=poids_vote)
+        knn.fit(self._X_train_scaled, self.donnees.y_train)
+        return float(knn.score(self._X_test_scaled, self.donnees.y_test))
 
     # ---------------------------------------------------------
     # Prédiction

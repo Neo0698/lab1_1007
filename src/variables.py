@@ -1,6 +1,7 @@
 """Variables d'entrée du modèle : chacune valide sa saisie à sa façon."""
 
 from abc import ABC, abstractmethod
+from typing import Any, Union
 
 from .exceptions import DonneeInvalideError
 
@@ -14,16 +15,17 @@ class Variable(ABC):
     """
 
     def __init__(self, nom: str, libelle: str) -> None:
+        """Garde le nom de la variable et le texte affiché à l'utilisateur."""
         self._nom = nom
         self._libelle = libelle
 
-    def _verifier_non_vide(self, valeur) -> None:
+    def _verifier_non_vide(self, valeur: Any) -> None:
         """Lève DonneeInvalideError si la valeur est vide (None ou chaîne vide)."""
         if valeur is None or (isinstance(valeur, str) and valeur.strip() == ""):
             raise DonneeInvalideError(f"Le champ « {self._libelle} » est vide.")
 
     @abstractmethod
-    def valider(self, valeur):
+    def valider(self, valeur: Any) -> Union[float, str]:
         """Valide la saisie et la renvoie convertie.
 
         Raises:
@@ -31,6 +33,7 @@ class Variable(ABC):
         """
 
     def __repr__(self) -> str:
+        """Représentation lisible, par ex. VariableNumerique(nom='Heure')."""
         return f"{type(self).__name__}(nom={self._nom!r})"
 
 
@@ -38,11 +41,12 @@ class VariableNumerique(Variable):
     """Variable numérique bornée par [minimum, maximum]."""
 
     def __init__(self, nom: str, libelle: str, minimum: float, maximum: float) -> None:
+        """Garde le nom, le libellé et l'intervalle [minimum, maximum] accepté."""
         super().__init__(nom, libelle)
         self._minimum = minimum
         self._maximum = maximum
 
-    def valider(self, valeur) -> float:
+    def valider(self, valeur: Any) -> float:
         """Renvoie la valeur en float si c'est un nombre dans l'intervalle.
 
         Raises:
@@ -62,6 +66,7 @@ class VariableCategorielle(Variable):
     """Variable dont la valeur doit appartenir à une liste fixe."""
 
     def __init__(self, nom: str, libelle: str, valeurs: list[str]) -> None:
+        """Garde le nom, le libellé et une copie de la liste des valeurs acceptées."""
         super().__init__(nom, libelle)
         self._valeurs = list(valeurs)
 
@@ -70,7 +75,7 @@ class VariableCategorielle(Variable):
         """Copie de la liste des valeurs possibles."""
         return list(self._valeurs)
 
-    def valider(self, valeur) -> str:
+    def valider(self, valeur: Any) -> str:
         """Renvoie la valeur si elle fait partie des valeurs possibles.
 
         Raises:

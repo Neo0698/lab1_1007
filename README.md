@@ -15,9 +15,7 @@ Source : [`Donny-Guo/airline-delay`](https://huggingface.co/datasets/Donny-Guo/a
 Le script create_dataset.py parcourt les 5 premiers millions de lignes en flux, retire les vols annulés, déroutés ou incomplets, et extrait un échantillon équilibré (50 % à l'heure / 50 % en retard) réparti entre les compagnies.
 
 ### Nettoyage
-
-`create_dataset.py` retire les vols annulés ou déroutés car ne possedant pas de retard mesurable nous ne pouvons pas appliquer la regle des 15 minutes, les lignes sans retard, heure de départ ou aéroport, et les durées nulles ou négatives présentes dans le jeu d'origine, sont donc retiré. Il convertit l'heure `HHMM` en minutes depuis minuit, la date en jour de la semaine, et le retard en `Delay` = 1 s'il atteint 15 minutes.
-Le CSV final ne contient aucune valeur manquante (`ModeleVol` refait quand même un `dropna()` par sécurité). Les valeurs restent dans des plages réalistes : heure de 0 à 1439 min, jour de 1 à 7, durée de 4 à 660 min (vols de plus de 10 h, par exemple vers Hawaï, gardés car réels). Les lignes identiques ne sont pas retirées : ce sont des vols réguliers qui reviennent chaque semaine.
+`create_dataset.py` retire les vols annulés ou déroutés, car leur retard à l'arrivée n'est pas mesurable et la règle des 15 minutes ne peut pas s'appliquer. Il retire aussi les lignes sans retard, sans heure de départ ou sans aéroport, ainsi que les durées nulles ou négatives présentes dans le jeu d'origine. Il convertit l'heure `HHMM` en minutes depuis minuit, la date en jour de la semaine, et le retard en `Delay` = 1 s'il atteint 15 minutes.
 
 ## Installation et lancement
 
@@ -54,16 +52,15 @@ Le décorateur `@chronometrer` (dans src/outils.py) sert à mesurer le temps d'e
 
 ## Résultats et limites
 
-Sur le jeu de test (80/20, `random_state=42`), le k-NN obtient **64,5 % d'exactitude** (avec pondération des variables), contre **50,0 %** pour la référence (`DummyClassifier`).
+- Sur le jeu de test (80/20, `random_state=42`), le k-NN obtient **64,5 % d'exactitude** (avec pondération des variables), contre **50,0 %** pour la référence (`DummyClassifier`).
 
-- L'heure de départ et la compagnie jouent beaucoup (les retards s'accumulent en fin de journée), alors que le jour et la durée influencent peu le résultat. Le modèle se trompe quand même environ une fois sur trois : il manque les causes principales des retards dans les données (météo, trafic aérien, retard de l'avion précédent), ce qui limite le projet.
+- L'heure de départ et la compagnie jouent beaucoup (les retards s'accumulent en fin de journée), alors que le jour et la durée influencent peu le résultat. Le modèle se trompe quand même environ une fois sur trois : il manque dans les données les causes principales des retards (météo, trafic aérien, retard de l'avion précédent), ce qui limite le projet.
 
-- seul le jour de la semaine est utilisé. Le modèle ne connaît ni le mois, ni les jours fériés, et nos données ne couvrent qu'une partie d'une année (les 5 premiers millions de vols du jeu, vers 2009), ce qui ne permettrait pas d'apprendre l'effet des saisons.
+- Seul le jour de la semaine est utilisé : le modèle ne connaît ni le mois, ni les jours fériés. Nos données ne couvrent de plus qu'une partie d'une année (les 5 premiers millions de vols du jeu, vers 2009), ce qui ne permettrait pas d'apprendre l'effet des saisons.
 
-- possède uniquement des compagnies américaine, dont certaines ont fait faillite. 
+- Le jeu de données ne contient que des compagnies américaines, dont certaines ont disparu depuis.
 
-- Encodage imparfaits : les compagnies sont numérotées par ordre alphabétique, donc deux compagnies paraissent « proches » sans raison réelle ; de même, dimanche (7) paraît éloigné de lundi (1).
-
+- Encodages imparfaits : les compagnies sont numérotées par ordre alphabétique, donc deux compagnies paraissent « proches » sans raison réelle ; de même, dimanche (7) paraît éloigné de lundi (1).
 
 ## Tests et documentation
 

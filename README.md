@@ -17,7 +17,11 @@ Le script create_dataset.py parcourt les 5 premiers millions de lignes en flux, 
 ### Nettoyage
 `create_dataset.py` retire les vols annulés ou déroutés, car leur retard à l'arrivée n'est pas mesurable et la règle des 15 minutes ne peut pas s'appliquer. Il retire aussi les lignes sans retard, sans heure de départ ou sans aéroport, ainsi que les durées nulles ou négatives présentes dans le jeu d'origine. Il convertit l'heure `HHMM` en minutes depuis minuit, la date en jour de la semaine, et le retard en `Delay` = 1 s'il atteint 15 minutes.
 
+Le CSV final ne contient aucune valeur manquante. Les valeurs restent dans des plages réalistes : heure de 0 à 1439 min, jour de 1 à 7, durée de 4 à 660 min correspondant à 11h. Les lignes identiques ne sont pas retirées : ce sont des vols réguliers qui reviennent chaque semaine.
+
 ## Installation et lancement
+
+Nécessite **Python 3.10 ou plus récent** (testé avec Python 3.10, la version de la CI).
 
 ```bash
 pip install -r requirements.txt
@@ -64,7 +68,7 @@ Le décorateur `@chronometrer` (dans src/outils.py) sert à mesurer le temps d'e
 
 ## Tests et documentation
 
-- Tests : pytest tests
+- Tests : `python -m pytest tests`
 - Couverture (coverage) : **58 %** sur "src/" ( coverage run --source=src -m pytest tests && coverage report). 
 
 Ce taux s'explique surtout par le fait que les tests couvrent plutôt la logique du modèle et la validation des données (model.py, Data.py, variables.py), alors que les scripts d'expérimentation (create_dataset.py, choix_modele.py), le point d'entrée (main.py) et la construction visuelle Gradio ne sont pas testés en unitaire.

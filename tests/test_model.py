@@ -218,7 +218,8 @@ def test_sauvegarder_cree_fichiers_et_metadonnees(modele_entraine, tmp_path):
     assert meta["airlines_possibles"] == modele.donnees.liste_airlines  # ← liste_airlines
     assert meta["intervalle_dayofweek"] == [1, 7]
     assert meta["intervalle_time"] == [0, 1439]
-    assert meta["intervalle_length"] == [0, 655]
+    durees = fabriquer_vols()["Length"]
+    assert meta["intervalle_length"] == [durees.min(), durees.max()]
     assert meta["exactitude_knn"] == pytest.approx(scores["exactitude_knn"])
     assert meta["exactitude_reference"] == pytest.approx(
         scores["exactitude_reference"])

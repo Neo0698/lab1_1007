@@ -331,12 +331,13 @@ class ModeleVol:
 
     def voisins(self, airline_choisie: str, aeroport: str, jour_semaine: int,
                 heure: int, minutes: int, duree: float) -> pd.DataFrame:
-        """Retourne les k vols d'entraînement les plus proches, avec aéroport, retard et distance."""
+        """Retourne les k vols d'entraînement les plus proches, avec compagnie, aéroport, retard et distance."""
         x = self._preparer_vol(airline_choisie, aeroport, jour_semaine, heure, minutes, duree)
-        distances, indices = self._knn.kneighbors(x) 
+        distances, indices = self._knn.kneighbors(x)
         lignes = self.donnees.df_train.iloc[indices[0]] # iloc permet de sélectionner les lignes par position dans le DataFrame
-        vols = lignes[self.donnees.features].copy()
-        vols.insert(0, "Origin", lignes["Origin"].values)
+        vols = lignes[self.donnees.features].drop(columns="Airline_Encoded") # le code numérique ne parle pas à l'utilisateur
+        vols.insert(0, "Airline", lignes["Airline"].values)
+        vols.insert(1, "Origin", lignes["Origin"].values)
         vols["Delay"] = lignes["Delay"].values
         vols["Distance"] = distances[0]
         return vols
@@ -384,7 +385,8 @@ class ModeleVol:
             "poids_variables": self.poids.en_dict(),
             "intervalle_dayofweek": [1, 7],
             "intervalle_time": [0, 1439],
-            "intervalle_length": [0, 655],
+            "intervalle_length": [int(self.donnees.data["Length"].min()),
+                                  int(self.donnees.data["Length"].max())],
             "exactitude_knn": scores["exactitude_knn"],
             "exactitude_reference": scores["exactitude_reference"],
         }

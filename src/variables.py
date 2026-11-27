@@ -106,5 +106,5 @@ def variables_depuis_metadonnees(meta: dict) -> list[Variable]:
         VariableNumerique("DayOfWeek", "Jour de la semaine", jour_min, jour_max),
         VariableNumerique("Heure", "Heure de départ", 0, 23),
         VariableNumerique("Minutes", "Minutes de départ", 0, 59),
-        VariableNumerique("Length", "Durée du vol (min)", 1, meta["intervalle_length"][1]),
+        VariableNumerique("Length", "Durée du vol (min)", *meta["intervalle_length"]),
     ]

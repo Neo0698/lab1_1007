@@ -7,7 +7,9 @@ certifi==2026.10.23
 charset-normalizer==3.5.2
 click>=8.2.1,<9
 contourpy==1.3.0
+coverage==7.16.2
 cycler==0.12.1
+datasets==4.5.0
 exceptiongroup==1.3.1
 fastapi==0.128.8
 ffmpy==1.0.0

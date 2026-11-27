@@ -1,31 +1,15 @@
 # Journal d'utilisation de l'IA
 
-## Méthode générale
+Projet 2 INF1007, prédiction de retards de vol (Hassan Ali Mohamed, Raphael Scott).
 
-Nous avons utilisé Claude Code pour écrire le code, faire les commits et les pushs, et décrire explicitement les modifications apportées à chaque étape.
+**Méthode générale :** nous avons utilisé Claude Code (Claude) pour écrire et réorganiser du code, expliquer des notions, et décrire les modifications faites à chaque étape. Chaque réponse a été vérifiée par un test, une exécution ou la documentation officielle avant d'être gardée.
 
-## Résolution de problèmes
-
-### Problèmes d'importation
-
-Certains imports fonctionnaient en local sur notre machine, mais échouaient dans les tests automatiques GitHub. L'IA nous a aidés à identifier le problème et à réécrire les imports pour que le code fonctionne dans les deux environnements.
-
-### Push refusé à cause de la taille du modèle
-
-Le push était bloqué parce que le fichier `knn.joblib` pèse 174 Mo. Le message d'erreur de Git n'était pas clair au départ. Nous avons dû comprendre la limite de taille imposée par GitHub pour résoudre le problème.
-
-## Apprentissages
-
-### Interface graphique
-
-Nous avons appris à utiliser la bibliothèque Gradio pour construire l'interface graphique du projet.
-
-### Tests avec pytest
-
-L'IA nous a permis de comprendre les mécanismes suivants dans `tests/test_model.py` :
-
-- **`@pytest.mark.parametrize`** : exécuter un même test avec plusieurs jeux de valeurs. Par exemple, `@pytest.mark.parametrize("jour", [0, 8])` exécute le test deux fois, avec `jour=0` puis `jour=8`.
-- **Fixtures** : `modele_entraine` est une fixture de portée `module`. Le modèle est entraîné une seule fois et partagé entre tous les tests du fichier.
-- **`pytest.raises`** : vérifier qu'une erreur précise est bien levée.
-
-Nous avons aussi relevé des incohérences sur la docstring ou aussi pour pointer les fonction n'ayant pas de docstring.
+| # | Outil | Ce que nous avons demandé | Réponse reçue | Vérification faite | Décision |
+|---|---|---|---|---|---|
+| 1 | Claude Code | Problème avec les imports des modules sur GitHub, qui n'utilisait pas la même racine que lorsqu'on exécutait le code sur notre machine. | Les tests lancent le code comme un paquet : il faut des imports relatifs (`from .model import ...`) et lancer avec `python -m src.main`. | Exécution : `python -m pytest tests` en local, puis push et vérification que la CI GitHub Actions passe au vert. | **Gardé** |
+| 3 | Claude Code | Pondérer le vote du k-NN avec une sigmoïde de la distance (`weights=sigmoid_weights`) pour donner plus d'importance aux voisins proches. | Code d'une fonction sigmoïde passée à `KNeighborsClassifier(weights=...)`. | Après comparaison des exactitudes sur le test. On observe qu'avec la fonction sigmoïde : 64,5 %, vote uniforme : 64,5 %, 1/distance : 61,3 %. donc résultat pire | **Rejeté** : la vérification a changé notre décision, on garde le vote uniforme, plus simple pour le même score. |
+| 4 | Claude Code | Ajouter la durée au carré (`Length_Carre`) pour mieux capter l'effet des vols longs. | Ajout de la colonne `Length_Carre = Length ** 2` dans les caractéristiques. | Exécution : sans durée 63,7 %, avec `Length` seule (poids 1) 64,5 %, avec `Length` + `Length_Carre` 64,5 %. | **Gardé**, mais noté comme sans gain mesurable : `Length` seule suffirait. |
+| 5 | Claude Code |Demande pour remplacer chaque aéroport par une valeur numérique utilisable par le k-NN, en calculant la moyenne de ses retards ou d'utiliser one-hot.| One-hot déconseillé (trop de colonnes pour une distance). Proposition : taux de retard lissé de l'aéroport, calculé sur l'entraînement seulement, avec le taux global pour un aéroport inconnu. | Test pytest sur un aéroport inconnu ; vérification que le taux est calculé après `train_test_split` (pas de fuite du test). | **Gardé** (`Origin_Taux`) |
+| 7 | Claude Code | Relire le code et repérer les fonctions sans docstring ou avec une docstring incohérente. | Liste des fonctions concernées. | Relecture manuelle de chaque fonction signalée. | **Modifié** : nous avons écrit ou corrigé nous-mêmes les docstrings (ce qu'elles reçoivent, renvoient et quand elles échouent). |
+| 8 | Claude Code | Construire l'interface avec Gradio : formulaire, bouton, graphique Matplotlib et historique. | Structure avec `gr.Blocks`, `gr.Dropdown`, `gr.Number`, `bouton.click(fonction, inputs, outputs)` et `gr.Plot`. | Documentation Gradio (gradio.app/docs) et essais dans l'application : saisie valide, saisie invalide, rafraîchissement de l'historique. | **Gardé** |
+| 9 | Claude Code | demande de faire des commits de notre code avec une description plus claire des modifications apportées | |  vérification des messages de claude sur github et que le commit est correcte et possède tous les fichiers modifiés | Gardé |

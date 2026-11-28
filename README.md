@@ -25,7 +25,7 @@ Nécessite **Python 3.10 ou plus récent** (testé avec Python 3.10, la version 
 
 ```bash
 pip install -r requirements.txt
-python -m src.create_dataset   # optionnel : régénère donnees/Airlines.csv
+python -m src.create_dataset   # optionnel : régénère donnees/Airlines.csv . Son exécution prend environ une minute
 python -m src.model            # optionnel : entraîne le modèle et crée exploration.png
 python -m src.main             # lance l'interface sur http://127.0.0.1:7860
 ```

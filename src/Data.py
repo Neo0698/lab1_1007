@@ -1,9 +1,7 @@
 """Jeu de données de vols : chargement du CSV, découpage entraînement/test et exploration."""
 
-from __future__ import annotations
-
 import os
-from typing import Callable
+from typing import Optional, Callable
 
 
 import pandas as pd
@@ -17,14 +15,10 @@ FEATURES = ["Airline_Encoded", "Origin_Taux", "DayOfWeek", "Time", "Length", "Le
 
 
 class Data(Dataset):
-    """Jeu de données de vols : chargement, découpage entraînement/test et exploration.
+    """Gère le chargement du CSV, la séparation entraînement/test et l'exploration."""
 
-    Args:
-        data: DataFrame déjà chargé (facultatif).
-    """
-
-    def __init__(self, data: pd.DataFrame | None = None) -> None:
-        """Crée un jeu de données vide (ou à partir de data), pas encore découpé."""
+    def __init__(self, data: Optional[pd.DataFrame] = None) -> None:
+        """Initialise le jeu de données (vide par défaut ou à partir d'un DataFrame)."""
         self._data = data
         self._liste_airlines: list[str] = []
         self._liste_aeroports: list[str] = []
@@ -55,7 +49,7 @@ class Data(Dataset):
 
     @features.setter
     def features(self, colonnes: list[str]) -> None:
-        """Remplace les colonnes utilisées comme caractéristiques (copie de la liste)."""
+        """Modifie la liste des colonnes utilisées comme caractéristiques."""
         self._features = list(colonnes)
 
     def _verifier_decoupage(self) -> None:
@@ -71,7 +65,7 @@ class Data(Dataset):
 
     @property
     def y_train(self) -> pd.Series:
-        """Cible (Delay) de l'ensemble d'entraînement."""
+        """Colonne cible (Delay) de l'ensemble d'entraînement."""
         self._verifier_decoupage()
         return self._df_train["Delay"]
 
@@ -83,19 +77,19 @@ class Data(Dataset):
 
     @property
     def y_test(self) -> pd.Series:
-        """Cible (Delay) de l'ensemble de test."""
+        """Colonne cible (Delay) de l'ensemble de test."""
         self._verifier_decoupage()
         return self._df_test["Delay"]
 
     @property
     def df_train(self) -> pd.DataFrame:
-        """Ensemble d'entraînement complet (toutes les colonnes)."""
+        """Ensemble d'entraînement complet avec toutes ses colonnes."""
         self._verifier_decoupage()
         return self._df_train
 
-    # --- Modification de l'état --------------------------------------------
+    
     def charger_donnees(self, path: str) -> pd.DataFrame:
-        """Lit le CSV et le garde en mémoire.
+        """Lit le fichier CSV et le stocke en mémoire.
 
         erreur:
             FileNotFoundError: si le fichier n'existe pas.
@@ -115,9 +109,11 @@ class Data(Dataset):
 
     def train_test_split(self, df: pd.DataFrame, test_size: float = 0.2,
                          graine: int = 42) -> None:
-        """Découpe df en ensembles d'entraînement et de test (graine fixée : reproductible)."""
-        self._df_train, self._df_test = train_test_split(df, test_size=test_size,
-                                                         random_state=graine)
+        """Sépare le DataFrame en ensembles d'entraînement et de test."""
+        self._df_train, self._df_test = train_test_split(
+            df, 
+            test_size=test_size, 
+            random_state=graine)
 
     def transformer(self, fonction: Callable[[pd.DataFrame], pd.DataFrame]) -> None:
         """Applique fonction (DataFrame -> DataFrame) aux ensembles d'entraînement et de test."""
@@ -125,7 +121,7 @@ class Data(Dataset):
         self._df_train = fonction(self._df_train)
         self._df_test = fonction(self._df_test)
 
-    # --- Sauvegarde et chargement ------------------------------------------
+
     def en_dict(self) -> dict:
         """Ce que Data doit enregistrer dans les métadonnées : colonnes et valeurs connues."""
         return {

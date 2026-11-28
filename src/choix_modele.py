@@ -1,13 +1,7 @@
-"""Choix du modèle : effet de k et de la taille du jeu de données sur l'exactitude du kNN.
-
-Lancement (depuis la racine du projet) : python -m src.choix_modele
-"""
-
-from __future__ import annotations
+"""Comparaison du modèle k-NN selon k et selon la taille de l'échantillon."""
 
 import os
 import time
-from collections.abc import Iterable
 
 import pandas as pd
 from matplotlib.figure import Figure
@@ -20,15 +14,12 @@ TAILLES = [5_000, 10_000, 25_000, 50_000, 100_000, 250_000, 500_000, 1_000_000]
 
 
 def score_selon_taille(df: pd.DataFrame, tailles: list[int], k: int = 31) -> pd.DataFrame:
-    """Entraîne un kNN sur des échantillons de tailles croissantes et mesure ses scores.
-
-    Chaque échantillon est tiré au hasard (graine fixe) puis découpé 80 % / 20 %
-    comme dans ModeleVol.entrainer().
+    """Entraîne un k-NN sur des sous-échantillons de différentes tailles.
 
     Args:
         df: Jeu de données complet.
-        tailles: Nombres de lignes à tester (les tailles plus grandes que df sont ignorées).
-        k: Nombre de voisins du kNN.
+        tailles: Liste des tailles d'échantillons à tester.
+        k: Nombre de voisins du k-NN.
 
     Returns:
         DataFrame avec les colonnes taille, exactitude_knn, exactitude_reference, temps_s.
@@ -50,8 +41,8 @@ def graphique_taille(resultats: pd.DataFrame, chemin_sortie: str) -> str:
     """Enregistre le graphique exactitude et temps d'entraînement selon la taille (PNG).
 
     Args:
-        resultats: DataFrame retourné par score_selon_taille.
-        chemin_sortie: Chemin du fichier PNG de destination.
+        resultats: DataFrame retourné par score_selon_taille().
+        chemin_sortie: Chemin du fichier PNG à créer.
 
     Returns:
         Chemin du fichier enregistré.
@@ -77,18 +68,20 @@ def graphique_taille(resultats: pd.DataFrame, chemin_sortie: str) -> str:
     ax_temps.grid(True, alpha=0.3)
 
     fig.tight_layout()
-    os.makedirs(os.path.dirname(chemin_sortie) or ".", exist_ok=True)
+    dossier = os.path.dirname(chemin_sortie)
+    if dossier:
+        os.makedirs(dossier, exist_ok=True)
     fig.savefig(chemin_sortie, dpi=120)
     return chemin_sortie
 
 
-def score_selon_k(modele: ModeleVol, valeurs_k: Iterable[int], chemin_sortie: str) -> str:
-    """Compare l'exactitude du kNN selon k, avec et sans pondération sigmoïde (PNG).
+def score_selon_k(modele: ModeleVol, valeurs_k: list[int], chemin_sortie: str) -> str:
+    """Compare l'exactitude du k-NN selon k, avec et sans pondération sigmoïde (PNG).
 
     Args:
         modele: Instance de ModeleVol déjà entraînée.
-        valeurs_k: Collection de valeurs de k à tester.
-        chemin_sortie: Chemin du fichier PNG de destination.
+        valeurs_k: Liste des valeurs de k à tester.
+        chemin_sortie: Chemin du fichier PNG à créer.
 
     Returns:
         Chemin du fichier enregistré.
@@ -101,16 +94,18 @@ def score_selon_k(modele: ModeleVol, valeurs_k: Iterable[int], chemin_sortie: st
 
     fig = Figure(figsize=(10, 6))
     ax = fig.subplots()
-    ax.plot(list(valeurs_k), sans_poids, marker="o", color="#2e7d32", linewidth=2,
+    ax.plot(valeurs_k, sans_poids, marker="o", color="#2e7d32", linewidth=2,
             label="Sans pondération")
-    ax.plot(list(valeurs_k), avec_poids, marker="o", color="#8F00FF", linewidth=2,
+    ax.plot(valeurs_k, avec_poids, marker="o", color="#8F00FF", linewidth=2,
             label="Pondération sigmoïde")
     ax.set(title="Score du modèle k-NN en fonction de k", xlabel="Valeur de k",
            ylabel="Score (exactitude)")
     ax.grid(True, alpha=0.3)
     ax.legend()
     fig.tight_layout()
-    os.makedirs(os.path.dirname(chemin_sortie) or ".", exist_ok=True)
+    dossier = os.path.dirname(chemin_sortie)
+    if dossier:
+        os.makedirs(dossier, exist_ok=True)
     fig.savefig(chemin_sortie, dpi=120)
     return chemin_sortie
 
@@ -125,7 +120,7 @@ def main() -> None:
     resultats = score_selon_taille(df, TAILLES)
     resultats.to_csv(os.path.join("donnees", "score_vs_taille.csv"), index=False)
     chemin = graphique_taille(resultats, os.path.join("donnees", "score_vs_taille.png"))
-    print(f"--- Graphique enregistré dans '{chemin}' ---")
+    print(f"Graphique enregistré dans '{chemin}'.")
 
 
 if __name__ == "__main__":

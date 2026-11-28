@@ -1,4 +1,4 @@
-"""Variables d'entrée du modèle : chacune valide sa saisie à sa façon."""
+"""Classes de validation des variables d'entrée du formulaire."""
 
 from abc import ABC, abstractmethod
 from typing import Any, Union
@@ -7,12 +7,7 @@ from .exceptions import DonneeInvalideError
 
 
 class Variable(ABC):
-    """Variable d'entrée abstraite.
-
-    Args:
-        nom: Nom de la variable.
-        libelle: Texte affiché à l'utilisateur.
-    """
+    """Classe abstraite représentant une variable saisie par l'utilisateur."""
 
     def __init__(self, nom: str, libelle: str) -> None:
         """Garde le nom de la variable et le texte affiché à l'utilisateur."""
@@ -20,25 +15,25 @@ class Variable(ABC):
         self._libelle = libelle
 
     def _verifier_non_vide(self, valeur: Any) -> None:
-        """Lève DonneeInvalideError si la valeur est vide (None ou chaîne vide)."""
+        """Lève DonneeInvalideError si la valeur est vide."""
         if valeur is None or (isinstance(valeur, str) and valeur.strip() == ""):
-            raise DonneeInvalideError(f"Le champ « {self._libelle} » est vide.")
+            raise DonneeInvalideError(f"Le champ '{self._libelle}' est vide.")
 
     @abstractmethod
     def valider(self, valeur: Any) -> Union[float, str]:
         """Valide la saisie et la renvoie convertie.
 
         Raises:
-            DonneeInvalideError: si la saisie est invalide.
+            DonneeInvalideError: Si la saisie est invalide.
         """
 
     def __repr__(self) -> str:
-        """Représentation lisible, par ex. VariableNumerique(nom='Heure')."""
-        return f"{type(self).__name__}(nom={self._nom!r})"
+        """Retourne une représentation texte de la variable."""
+        return f"{self.__class__.__name__}(nom='{self._nom}')"
 
 
 class VariableNumerique(Variable):
-    """Variable numérique bornée par [minimum, maximum]."""
+    """Variable numérique devant rester dans un intervalle [minimum, maximum]."""
 
     def __init__(self, nom: str, libelle: str, minimum: float, maximum: float) -> None:
         """Garde le nom, le libellé et l'intervalle [minimum, maximum] accepté."""
@@ -56,11 +51,13 @@ class VariableNumerique(Variable):
         try:
             nombre = float(valeur)
         except (TypeError, ValueError):
-            raise DonneeInvalideError(f"« {self._libelle} » doit être un nombre.") from None
-        if not self._minimum <= nombre <= self._maximum:
+            raise DonneeInvalideError(f"'{self._libelle}' doit être un nombre.")
+        if not (self._minimum <= nombre <= self._maximum):
             raise DonneeInvalideError(
-                f"« {self._libelle} » doit être entre {self._minimum} et {self._maximum}.")
+                f"'{self._libelle}' doit être entre {self._minimum} et {self._maximum}."
+            )
         return nombre
+
 
 class VariableCategorielle(Variable):
     """Variable dont la valeur doit appartenir à une liste fixe."""
@@ -72,11 +69,11 @@ class VariableCategorielle(Variable):
 
     @property
     def valeurs(self) -> list[str]:
-        """Copie de la liste des valeurs possibles."""
+        """Retourne une copie des valeurs possibles."""
         return list(self._valeurs)
 
     def valider(self, valeur: Any) -> str:
-        """Renvoie la valeur si elle fait partie des valeurs possibles.
+        """Vérifie que la valeur choisie fait partie de la liste autorisée.
 
         Raises:
             DonneeInvalideError: si la valeur est vide ou inconnue.
@@ -84,14 +81,16 @@ class VariableCategorielle(Variable):
         self._verifier_non_vide(valeur)
         if valeur not in self._valeurs:
             raise DonneeInvalideError(
-                f"« {valeur} » n'est pas une valeur possible de « {self._libelle} ».")
+                f"'{valeur}' n'est pas une valeur valide pour '{self._libelle}'."
+            )
         return valeur
 
+
 def variables_depuis_metadonnees(meta: dict) -> list[Variable]:
-    """Construit les variables d'entrée, dans l'ordre du formulaire, à partir du JSON.
+    """Crée la liste des 6 variables du formulaire à partir de metadonnees.json.
 
     Args:
-        meta: Métadonnées du modèle (contenu de metadonnees.json).
+        meta: Dictionnaire chargé depuis metadonnees.json.
 
     Returns:
         [compagnie, aéroport, jour, heure, minutes, durée].
@@ -100,11 +99,12 @@ def variables_depuis_metadonnees(meta: dict) -> list[Variable]:
         KeyError: si une clé attendue manque dans les métadonnées.
     """
     jour_min, jour_max = meta["intervalle_dayofweek"]
+    duree_min, duree_max = meta["intervalle_length"]
     return [
         VariableCategorielle("Airline", "Compagnie aérienne", meta["airlines_possibles"]),
         VariableCategorielle("Origin", "Aéroport de départ", meta["aeroports_possibles"]),
         VariableNumerique("DayOfWeek", "Jour de la semaine", jour_min, jour_max),
         VariableNumerique("Heure", "Heure de départ", 0, 23),
         VariableNumerique("Minutes", "Minutes de départ", 0, 59),
-        VariableNumerique("Length", "Durée du vol (min)", *meta["intervalle_length"]),
+        VariableNumerique("Length", "Durée du vol (min)", duree_min, duree_max),
     ]

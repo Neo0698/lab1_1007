@@ -14,7 +14,7 @@ DOSSIER_MODELES = "modeles"
 
 
 def preparer_modele(chemin_csv: str = CHEMIN_CSV, dossier: str = DOSSIER_MODELES) -> ModeleVol:
-    """Charge le modèle sauvegardé ; s'il est absent, l'entraîne et le sauvegarde une fois.
+    """Charge le modèle sauvegardé ou l'entraîne une première fois s'il est absent.
 
     Args:
         chemin_csv: Chemin du jeu de données.
@@ -30,7 +30,7 @@ def preparer_modele(chemin_csv: str = CHEMIN_CSV, dossier: str = DOSSIER_MODELES
     try:
         modele.charger(dossier)
     except FileNotFoundError as e:
-        print(f"{e} : entraînement du modèle…")
+        print(f"{e} : entraînement du modèle...")
         modele.sauvegarder(modele.entrainer(), dossier=dossier)
         modele.charger(dossier)
     return modele

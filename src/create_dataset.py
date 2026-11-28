@@ -1,18 +1,10 @@
-"""Génère Airlines.csv (Airline,Origin,DayOfWeek,Time,Length,Delay) à partir du jeu
-Hugging Face Donny-Guo/airline-delay (sous-ensemble flight_detail).
+"""Génère donnees/Airlines.csv à partir du jeu Hugging Face Donny-Guo/airline-delay.
 
-L'échantillon final est :
-  - équilibré : 50 % de vols en retard (Delay = 1) et 50 % à l'heure (Delay = 0) ;
-  - le plus varié possible en compagnies : toutes les compagnies présentes dans
-    le jeu sont conservées, et les places sont réparties équitablement entre
-    elles (une petite compagnie garde tous ses vols, les grandes se partagent
-    le reste).
+L'échantillon extrait est équilibré (50 % en retard, 50 % à l'heure) et réparti
+entre les différentes compagnies aériennes. Le jeu complet étant très volumineux,
+il est lu en flux par lots sans tout charger en mémoire.
 
-Le jeu entier (61,6 M de lignes) est parcouru une fois en flux, par lots, sans
-tout charger en mémoire. Prévoir plusieurs minutes.
-
-Installation :  pip install datasets pandas numpy
-Lancement   :  python -m src.create_dataset
+Lancement : python -m src.create_dataset
 """
 import numpy as np
 import pandas as pd
@@ -33,12 +25,7 @@ COLONNES = ["fl_date", "op_carrier", "origin", "crs_dep_time", "crs_elapsed_time
 
 
 def preparer_lot(lot: pd.DataFrame, seuil: int, rng: np.random.Generator) -> pd.DataFrame:
-    """Filtre les vols inutilisables et calcule les colonnes finales d'un lot.
-
-    Reçoit un lot brut, le seuil de retard et un générateur aléatoire ; renvoie
-    un DataFrame Airline, Origin, DayOfWeek, Time, Length, Delay + une clé aléatoire
-    « cle » servant à tirer des échantillons uniformes.
-    """
+    """Filtre les vols invalides d'un lot et construit les colonnes finales."""
     valide = (~lot["cancelled"].astype(bool) & ~lot["diverted"].astype(bool)
               & lot["arr_delay"].notna() & lot["crs_dep_time"].notna()
               & lot["origin"].notna()

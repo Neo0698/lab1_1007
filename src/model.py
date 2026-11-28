@@ -58,25 +58,15 @@ def taux_retard_lisse(origines: pd.Series, retards: pd.Series, poids: int = 20) 
 
 
 class PoidsVariables:
-    """Poids de chaque variable dans la distance du kNN (1 = poids normal, 0 = ignorée).
-
-    Les poids s'appliquent après la normalisation : un poids k multiplie
-    l'importance de la variable dans la distance euclidienne par k².
-
-    Args:
-        k_duree: Poids de la durée du vol (Length et Length_Carre).
-        k_aeroport: Poids du taux de retard de l'aéroport de départ.
-        k_jour: Poids du jour de la semaine.
-        k_heure: Poids de l'heure de départ.
-        k_compagnie: Poids de la compagnie.
-
-    erreur:
-        ValueError: si un poids est négatif.
-    """
+    """Gère les poids appliqués aux variables après la normalisation pour le calcul de distance."""
 
     def __init__(self, k_duree: float = 1.0, k_aeroport: float = 1.0, k_jour: float = 1.0,
                  k_heure: float = 1.0, k_compagnie: float = 1.0) -> None:
-        """Associe chaque poids à sa colonne (voir la docstring de la classe)."""
+        """Initialise les poids de chaque caractéristique.
+
+        Raises:
+            ValueError: Si l'un des poids est négatif.
+        """
         if min(k_duree, k_aeroport, k_jour, k_heure, k_compagnie) < 0:
             raise ValueError("Les poids doivent être positifs ou nuls.")
         self._poids = {

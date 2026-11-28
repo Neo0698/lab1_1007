@@ -7,7 +7,6 @@
     "Length",
     "Length_Carre"
   ],
-  "cible": "Delay",
   "airlines_possibles": [
     "9E",
     "AA",
@@ -327,6 +326,8 @@
     "YAK",
     "YUM"
   ],
+  "cible": "Delay",
+  "dataset": "donnees/Airlines.csv",
   "taux_retard_aeroports": {
     "ABE": 0.4338295734021058,
     "ABI": 0.5204452476799307,
@@ -634,7 +635,6 @@
     "Length": 0.5,
     "Length_Carre": 0.5
   },
-  "dataset": "donnees/Airlines.csv",
   "intervalle_dayofweek": [
     1,
     7
